@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<resource xmlns="http://www.wxwindows.org/wxxrc" version="2.3.0.1">
+	<object class="wxFrame" name="mainWin">
+		<style>wxDEFAULT_FRAME_STYLE|wxTAB_TRAVERSAL</style>
+		<size>500,500</size>
+		<title>wxCPANPLUS</title>
+		<object class="wxStatusBar" name="theStatusBar">
+			<style>wxST_SIZEGRIP</style>
+			<fields>1</fields>
+		</object>
+		<object class="wxMenuBar" name="theMenuBar">
+			<label>theMenuBar</label>
+			<object class="wxMenu" name="file">
+				<label>File</label>
+				<object class="wxMenuItem" name="mb_file_open">
+					<label>Open...\tO</label>
+					<help>Open A Selection List</help>
+				</object>
+				<object class="wxMenuItem" name="mb_file_save">
+					<label>Save\tS</label>
+					<help>Save Current Selection</help>
+				</object>
+				<object class="wxMenuItem" name="mb_file_saveas">
+					<label>Save As...\tshift+S</label>
+					<help>Save the current selection to file</help>
+				</object>
+				<object class="separator" />
+				<object class="wxMenuItem" name="mb_file_quit">
+					<label>Quit\tQ</label>
+					<help>Quit Application</help>
+				</object>
+			</object>
+			<object class="wxMenu" name="mb_help">
+				<label>Help</label>
+				<object class="wxMenuItem" name="mb_help_help">
+					<label>Help\tH</label>
+					<help>How to use wxCPANPLUS</help>
+				</object>
+				<object class="separator" />
+				<object class="wxMenuItem" name="mb_help_about">
+					<label>About\tA</label>
+					<help>About wxCPANPLUS</help>
+				</object>
+			</object>
+		</object>
+		<object class="wxToolBar" name="theToolBar">
+			<style>wxTB_HORIZONTAL</style>
+			<bitmapsize></bitmapsize>
+			<margins></margins>
+			<packing>1</packing>
+			<separation>5</separation>
+			<object class="tool" name="tb_open">
+				<label>tool</label>
+				<tooltip></tooltip>
+				<longhelp>Open A Saved Selection Group</longhelp>
+				<bitmap />
+			</object>
+			<object class="separator" />
+			<object class="tool" name="tb_save">
+				<label>tool</label>
+				<tooltip></tooltip>
+				<longhelp></longhelp>
+				<bitmap />
+			</object>
+			<object class="tool" name="tb_saveas">
+				<label>tool</label>
+				<tooltip></tooltip>
+				<longhelp></longhelp>
+				<bitmap />
+			</object>
+			<object class="separator" />
+			<object class="tool" name="tb_quit">
+				<label>tool</label>
+				<tooltip></tooltip>
+				<longhelp></longhelp>
+				<bitmap />
+			</object>
+			<object class="separator" />
+			<object class="tool" name="tb_help">
+				<label>tool</label>
+				<tooltip></tooltip>
+				<longhelp></longhelp>
+				<bitmap />
+			</object>
+		</object>
+	</object>
+</resource>

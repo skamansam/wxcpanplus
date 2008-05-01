@@ -1,0 +1,6 @@
+#Wed Apr 30 20:03:18 EDT 2008
+DELEGATES_PREFERENCE=delegateValidatorList
+USER_BUILD_PREFERENCE=enabledBuildValidatorListorg.eclipse.wst.jsdt.web.core.internal.validation.JsBatchValidator;
+USER_MANUAL_PREFERENCE=enabledManualValidatorListorg.eclipse.wst.jsdt.web.core.internal.validation.JsBatchValidator;
+USER_PREFERENCE=overrideGlobalPreferencesfalse
+eclipse.preferences.version=1
