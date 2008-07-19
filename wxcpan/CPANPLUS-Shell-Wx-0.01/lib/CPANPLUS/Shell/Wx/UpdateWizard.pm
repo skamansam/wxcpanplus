@@ -6,7 +6,7 @@ use Wx qw/:allclasses wxID_OK wxID_CANCEL wxHORIZONTAL
 	wxTE_READONLY wxTE_CENTRE wxTE_WORDWRAP wxALIGN_CENTER_VERTICAL wxEXPAND
 	wxALIGN_CENTER_HORIZONTAL wxGA_HORIZONTAL wxGA_SMOOTH wxLC_REPORT 
 	wxSUNKEN_BORDER/;
-use Wx::Event qw(EVT_WIZARD_PAGE_CHANGED EVT_WINDOW_CREATE EVT_BUTTON EVT_CHECKBOX);
+use Wx::Event qw(EVT_WIZARD_PAGE_CHANGED EVT_WINDOW_CREATE EVT_BUTTON EVT_CHECKBOX EVT_WIZARD_PAGE_CHANGING);
 use Wx::ArtProvider qw/:artid :clientid/;
 use Cwd;
 use Data::Dumper;
@@ -20,17 +20,7 @@ sub new{
 	$self->{parent} = $parent;
 
 	#get all the pages
-	$self->{page1}=$self->_get_intro_page;
-	$self->{page2}=$self->_get_update_type_page;
-	$self->{page3}=$self->_get_review_page;
-	$self->{page4}=$self->_get_progress_page;
-	$self->{page5}=$self->_get_report_page;
-
-	#connect all the pages together
-	Wx::WizardPageSimple::Chain( $self->{page1}, $self->{page2} );
-	Wx::WizardPageSimple::Chain( $self->{page2}, $self->{page3} );
-	Wx::WizardPageSimple::Chain( $self->{page3}, $self->{page4} );
-	Wx::WizardPageSimple::Chain( $self->{page4}, $self->{page5} );
+	$self->{page1}=CPANPLUS::Shell::Wx::UpdateWizard::IntroPage->new($self);
 
 	return $self;
 }
@@ -41,12 +31,103 @@ sub Run{
 	$self->RunWizard($self->{page1});
 }
 
-#page 1: introduction
-sub _get_intro_page{
+sub SetCPPObject{
 	my $self=shift;
-	my $page=Wx::WizardPageSimple->new( $self );
+	$self->{cpan}=shift;
 
-	$txt = Wx::TextCtrl->new($page, -1, 
+	#get the version so we can see if Selfupdate is supported
+	my $curVersion=$self->{cpan}->VERSION;
+    $curVersion=~s/_//; 				#delete underscore in version so we can compare
+	print "Current CPP Verison is: $curVersion\n";
+	if ( $curVersion >= 0.7702){	#check if we can use CPANPLUS::Selfupdate
+		$self->{update} = $self->{cpan}->selfupdate_object;
+	}else{
+		$self->{update}=undef;
+	}
+	
+	if ($self->{update}){ print "Using Selfupdate!\n";}
+
+	$self->_setupTheList();
+}
+
+#this sets up a hash of all the values in selfupdate.
+#this should work with all 
+sub _setupTheList{
+	my $self=shift;
+	my $update=$self->{update};
+
+	#if we can't use selfupdate,set list to just CPANPLUS and return
+	unless ($update){
+		$self->{theList}={core_mods => {'CPANPLUS'=>'0.77_02'}} ;
+		return;
+	}
+	
+	#check for enabled features
+	foreach $m ($update->list_enabled_features){
+		$self->{theList}->{enabled_features}->{$m}= \$update->modules_for_feature($m,AS_HASH);
+	}
+	foreach $m ($update->list_features(AS_HASH)){
+		$self->{theList}->{features}->{$m}= \$update->modules_for_feature($m,AS_HASH);
+	}
+	$self->{theList}->{core_deps} = $update->list_core_dependencies(AS_HASH);
+	$self->{theList}->{core_mods} = $update->list_core_modules(AS_HASH);
+	
+	#the areas to update
+	$self->{theList}->{areas_to_update}={
+			core_mods=>0,
+			core_deps=>0,
+			features=>0,
+			enabled_features=>0
+	};
+		
+#	print Dumper $self->{theList};
+	$self->{page1}->GetNext()->check_update();
+}
+
+
+#this is a template for a page. You must set the var's
+# $self->{nextPage} and $self->{prevPage} in your constructor
+package CPANPLUS::Shell::Wx::UpdateWizard::Page;
+use base qw(Wx::WizardPage);
+use Wx;
+use Wx::Event qw(EVT_WIZARD_PAGE_CHANGED EVT_WINDOW_CREATE);
+use Data::Dumper;
+
+use Wx::Locale gettext => '_T';
+
+sub new{
+	my $class = shift;
+	my ($parent) = @_;
+    my $self = $class->SUPER::new($parent);
+	$self->{parent}=$parent;
+	$self->{prevPage}=undef;
+	$self->{nextPage}=undef;
+	return $self;
+}
+sub GetParent{ my $self=shift; return $self->{parent};}
+sub SetPrev{ my $self=shift; $self->{prevPage}=shift;}
+sub GetNext{ my $self=shift; return $self->{nextPage};}
+sub GetPrev{ my $self=shift; return $self->{prevPage};}
+
+#page 1: introduction
+package CPANPLUS::Shell::Wx::UpdateWizard::IntroPage;
+
+use base qw(CPANPLUS::Shell::Wx::UpdateWizard::Page);
+use Wx qw/:allclasses wxHORIZONTAL
+	wxVERTICAL wxADJUST_MINSIZE wxDefaultPosition wxDefaultSize wxTE_MULTILINE 
+	wxTE_READONLY wxTE_CENTRE wxTE_WORDWRAP wxALIGN_CENTER_VERTICAL wxEXPAND
+	wxALIGN_CENTER_HORIZONTAL/;
+use Wx::Event qw(EVT_WIZARD_PAGE_CHANGED EVT_WINDOW_CREATE);
+use Data::Dumper;
+
+use Wx::Locale gettext => '_T';
+
+sub new{
+	my $class = shift;
+	my ($parent) = @_;
+    my $self = $class->SUPER::new($parent);
+
+	$txt = Wx::TextCtrl->new($self, -1, 
 		_T("Welcome to the CPANPLUS update wizard. \n".
 		"	\nWe will begin by asking a few simple questions to update ".
 		"CPANPLUS. \n	\nClick Next to begin."), 
@@ -56,105 +137,288 @@ sub _get_intro_page{
 
 	$sizer = Wx::BoxSizer->new(wxVERTICAL);
 	$sizer->Add($txt, 1, wxEXPAND|wxADJUST_MINSIZE, 0);
-	$page->SetSizer($sizer);
-	$sizer->Fit($page);
+	$self->SetSizer($sizer);
+	$sizer->Fit($self);
 
-	return $page;
+	$self->{nextPage}=CPANPLUS::Shell::Wx::UpdateWizard::UpdateTypePage->new($self->{parent});
+	$self->{nextPage}->SetPrev($self);
+
+	bless($self,$class);
+	return $self;
 }
 
 #page 2:
-sub _get_update_type_page{
-	my $self=shift;
-	my $page=Wx::WizardPageSimple->new( $self );
+package CPANPLUS::Shell::Wx::UpdateWizard::UpdateTypePage;
 
-	$txt = Wx::TextCtrl->new($page, -1, _T("First, we need to know which modules you would like to update:"), wxDefaultPosition, wxDefaultSize, wxTE_MULTILINE|wxTE_READONLY|wxTE_CENTRE|wxTE_WORDWRAP);
-	$self->{update_core} = Wx::CheckBox->new($page, -1, _T("Core: \n  Just the core CPANPLUS modules."), wxDefaultPosition, wxDefaultSize, );
-	$self->{update_deps} = Wx::CheckBox->new($page, -1, _T("Dependencies: \n  All the modules which CPANPLUS depends upon."), wxDefaultPosition, wxDefaultSize, );
-	$self->{update_efeatures} = Wx::CheckBox->new($page, -1, _T("Enabled Features: \n  Currently enabled features of CPANPLUS."), wxDefaultPosition, wxDefaultSize, );
-	$self->{update_features} = Wx::CheckBox->new($page, -1, _T("All Features: \n  Enabled and Non-Enabled Features"), wxDefaultPosition, wxDefaultSize, );
-	$self->{update_all} = Wx::CheckBox->new($page, -1, _T("All"), wxDefaultPosition, wxDefaultSize, );
-	$self->{static_line_1} = Wx::StaticLine->new($page, -1, wxDefaultPosition, wxDefaultSize, );
-	$self->{update_all_copy} = Wx::CheckBox->new($page, -1, _T("Update to Latest Version"), wxDefaultPosition, wxDefaultSize, );
+use base qw(CPANPLUS::Shell::Wx::UpdateWizard::Page);
+use Wx qw/:allclasses wxHORIZONTAL
+	wxVERTICAL wxADJUST_MINSIZE wxDefaultPosition wxDefaultSize wxTE_MULTILINE 
+	wxTE_READONLY wxTE_CENTRE wxTE_WORDWRAP wxALIGN_CENTER_VERTICAL wxEXPAND
+	wxALIGN_CENTER_HORIZONTAL/;
+use Wx::Event qw(EVT_CHECKBOX);
+use Data::Dumper;
 
-	$self->SetTitle(_T("Update Which Modules?"));
-	$txt->Enable(0);
-	$self->{update_all}->SetValue(1);
-	$self->{update_all_copy}->SetValue(1);
+use Wx::Locale gettext => '_T';
 
-	$sizer = Wx::BoxSizer->new(wxVERTICAL);
-	$sizer->Add($txt, 0, wxEXPAND|wxADJUST_MINSIZE, 0);
-	$sizer->Add($self->{update_core}, 0, wxALIGN_CENTER_VERTICAL|wxADJUST_MINSIZE, 0);
-	$sizer->Add($self->{update_deps}, 0, wxALIGN_CENTER_VERTICAL|wxADJUST_MINSIZE, 0);
-	$sizer->Add($self->{update_efeatures}, 0, wxALIGN_CENTER_VERTICAL|wxADJUST_MINSIZE, 0);
-	$sizer->Add($self->{update_features}, 0, wxALIGN_CENTER_VERTICAL|wxADJUST_MINSIZE, 0);
-	$sizer->Add($self->{update_all}, 0, wxALIGN_CENTER_VERTICAL|wxADJUST_MINSIZE, 0);
-	$sizer->Add($self->{static_line_1}, 0, wxEXPAND, 0);
-	$sizer->Add($self->{update_all_copy}, 0, wxALIGN_CENTER_VERTICAL|wxADJUST_MINSIZE, 0);
-	$page->SetSizer($sizer);
-	$sizer->Fit($page);
-
-	return $page;
+sub new{
+	my $class = shift;
+	my ($parent) = @_;
+    my $self = $class->SUPER::new($parent);
 	
-}
-sub _get_progress_page{
-	my $self=shift;
+	$self->{parent}=$parent;
 	
-	my $page=Wx::WizardPageSimple->new( $self );
-	
-	$txt= Wx::TextCtrl->new($page, -1, _T("Please wait while we install the selected modules."), wxDefaultPosition, wxDefaultSize, wxTE_MULTILINE|wxTE_READONLY|wxTE_CENTRE|wxTE_WORDWRAP);
-	$self->{progress} = Wx::Gauge->new($page, -1, 1000, wxDefaultPosition,     wxDefaultSize, wxGA_HORIZONTAL|wxGA_SMOOTH);
-	$self->{status_text} = Wx::StaticText->new($page, -1, _T("Status text..."), wxDefaultPosition, wxDefaultSize, );
+	$txt = Wx::TextCtrl->new($self, -1, _T("First, we need to know which modules you would like to update:"), wxDefaultPosition, wxDefaultSize, wxTE_MULTILINE|wxTE_READONLY|wxTE_CENTRE|wxTE_WORDWRAP);
+	$parent->{update_core} = Wx::CheckBox->new($self, -1, _T("Core: \n  Just the core CPANPLUS modules."), wxDefaultPosition, wxDefaultSize, );
+	$parent->{update_deps} = Wx::CheckBox->new($self, -1, _T("Dependencies: \n  All the modules which CPANPLUS depends upon."), wxDefaultPosition, wxDefaultSize, );
+	$parent->{update_efeatures} = Wx::CheckBox->new($self, -1, _T("Enabled Features: \n  Currently enabled features of CPANPLUS."), wxDefaultPosition, wxDefaultSize, );
+	$parent->{update_features} = Wx::CheckBox->new($self, -1, _T("All Features: \n  Enabled and Non-Enabled Features"), wxDefaultPosition, wxDefaultSize, );
+	$parent->{update_all} = Wx::CheckBox->new($self, -1, _T("All"), wxDefaultPosition, wxDefaultSize, );
+	$line = Wx::StaticLine->new($self, -1, wxDefaultPosition, wxDefaultSize, );
+	$parent->{latest_version} = Wx::CheckBox->new($self, -1, _T("Update to Latest Version"), wxDefaultPosition, wxDefaultSize, );
 
 	$txt->Enable(0);
 
+	$parent->{update_all}->SetValue(1);
+	$parent->{latest_version}->SetValue(1);
+
 	$sizer = Wx::BoxSizer->new(wxVERTICAL);
 	$sizer->Add($txt, 0, wxEXPAND|wxADJUST_MINSIZE, 0);
-	$sizer->Add($self->{progress}, 0, wxEXPAND|wxADJUST_MINSIZE, 0);
-	$sizer->Add($self->{status_text}, 0, wxEXPAND|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL|wxADJUST_MINSIZE, 0);
-	$page->SetSizer($sizer);
-	$sizer->Fit($page);
+	$sizer->Add($parent->{update_core}, 0, wxALIGN_CENTER_VERTICAL|wxADJUST_MINSIZE, 0);
+	$sizer->Add($parent->{update_deps}, 0, wxALIGN_CENTER_VERTICAL|wxADJUST_MINSIZE, 0);
+	$sizer->Add($parent->{update_efeatures}, 0, wxALIGN_CENTER_VERTICAL|wxADJUST_MINSIZE, 0);
+	$sizer->Add($parent->{update_features}, 0, wxALIGN_CENTER_VERTICAL|wxADJUST_MINSIZE, 0);
+	$sizer->Add($parent->{update_all}, 0, wxALIGN_CENTER_VERTICAL|wxADJUST_MINSIZE, 0);
+	$sizer->Add($line, 0, wxEXPAND, 0);
+	$sizer->Add($parent->{latest_version}, 0, wxALIGN_CENTER_VERTICAL|wxADJUST_MINSIZE, 0);
+	$self->SetSizer($sizer);
+	$sizer->Fit($self);
+	bless($self,$class);
 
-	return $page;
+	EVT_CHECKBOX($self,$parent->{update_core},\&UpdateCore);
+	EVT_CHECKBOX($self,$parent->{update_deps},\&UpdateDeps);
+	EVT_CHECKBOX($self,$parent->{update_efeatures},\&UpdateEFeatures);
+	EVT_CHECKBOX($self,$parent->{update_features},\&UpdateFeatures);
+	EVT_CHECKBOX($self,$parent->{update_all},\&UpdateAll);
+	EVT_CHECKBOX($self,$parent->{latest_version},\&UpdateLatest);
+	
+	$self->{nextPage}=CPANPLUS::Shell::Wx::UpdateWizard::ReviewUpdatesPage->new($self->{parent});
+	$self->{nextPage}->SetPrev($self);
+	
+	return $self;
 	
 }
-sub _get_review_page{
+sub check_update{
 	my $self=shift;
+	$parent=$self->{parent};
+	#if we can't use selfupdate, disable all relevant controls
+	unless ($parent->{update}){
+		$parent->{update_core}->Enable(0);
+		$parent->{update_deps}->Enable(0);
+		$parent->{update_efeatures}->Enable(0);
+		$parent->{update_features}->Enable(0);
+		$parent->{update_all}->Enable(0);
+	}
 	
-	my $page=Wx::WizardPageSimple->new( $self );
-	$txt = Wx::TextCtrl->new($page, -1, _T("Next, review all the modules that need to be upgraded or installed:"), wxDefaultPosition, wxDefaultSize, wxTE_MULTILINE|wxTE_READONLY|wxTE_CENTRE|wxTE_WORDWRAP);
-	$self->{update_list} = Wx::CheckListBox->new($page, -1, wxDefaultPosition, wxDefaultSize, [],wxSUNKEN_BORDER);
+}
+sub UpdateCore{
+	my $self=shift;
+	my $event=shift;
+	$parent=$self->{parent};
+	$parent->{theList}->{areas_to_update}->{core_mods}=$event->IsChecked;
+	$self->{nextPage}->Populate();
+}
+sub UpdateDeps{
+	my $self=shift;
+	my $event=shift;
+	$parent=$self->{parent};
+	$parent->{theList}->{areas_to_update}->{core_deps}=$event->IsChecked;
+	$self->{nextPage}->Populate();
+}
+sub UpdateEFeatures{
+	my $self=shift;
+	my $event=shift;
+	$parent=$self->{parent};
+	$parent->{theList}->{areas_to_update}->{enabled_features}=$event->IsChecked;
+	$self->{nextPage}->Populate();
+}
+sub UpdateFeatures{
+	my $self=shift;
+	my $event=shift;
+	$parent=$self->{parent};
+	$parent->{theList}->{areas_to_update}->{features}=$event->IsChecked;
+	$self->{nextPage}->Populate();
+}
+sub UpdateAll{
+	my $self=shift;
+	my $event=shift;
+	$parent=$self->{parent};
+	$parent->{theList}->{areas_to_update}->{all}=$event->IsChecked;
+	$self->{nextPage}->Populate();
+}
+sub UpdateLatest{
+	my $self=shift;
+	my $event=shift;
+	$parent=$self->{parent};
+	$parent->{theList}->{_latest}=$event->IsChecked;
+	$self->{nextPage}->Populate();
+}
+#page 3
+package CPANPLUS::Shell::Wx::UpdateWizard::ReviewUpdatesPage;
 
-	$self->SetTitle(_T("wxCPAN Update Wizard Review Updates"));
+use base qw(CPANPLUS::Shell::Wx::UpdateWizard::Page);
+use Wx qw/:allclasses wxHORIZONTAL wxLB_MULTIPLE
+	wxVERTICAL wxADJUST_MINSIZE wxDefaultPosition wxDefaultSize wxTE_MULTILINE 
+	wxTE_READONLY wxTE_CENTRE wxTE_WORDWRAP wxALIGN_CENTER_VERTICAL wxEXPAND
+	wxALIGN_CENTER_HORIZONTAL wxSUNKEN_BORDER /;
+use Wx::Event qw(EVT_WIZARD_PAGE_CHANGED EVT_WINDOW_CREATE);
+use Data::Dumper;
+
+use Wx::Locale gettext => '_T';
+
+sub new{
+	my $class = shift;
+	my ($parent) = @_;
+    my $self = $class->SUPER::new($parent);
+
+	$txt = Wx::TextCtrl->new($self, -1, _T("Next, review all the modules that need to be upgraded or installed:"), wxDefaultPosition, wxDefaultSize, wxTE_MULTILINE|wxTE_READONLY|wxTE_CENTRE|wxTE_WORDWRAP);
+	#$parent->{update_list} = Wx::CheckListBox->new($self, -1, wxDefaultPosition, wxDefaultSize, [],wxSUNKEN_BORDER);
+	$parent->{update_list} = Wx::ListBox->new($self, -1, wxDefaultPosition, wxDefaultSize, [],wxSUNKEN_BORDER|wxLB_MULTIPLE);
+	
+
 	$txt->Enable(0);
 
+	$sizer = Wx::BoxSizer->new(wxVERTICAL);
+	$sizer->Add($txt, 0, wxEXPAND|wxADJUST_MINSIZE, 0);
+	$sizer->Add($parent->{update_list}, 1, wxEXPAND, 0);
+	$self->SetSizer($sizer);
+	$sizer->Fit($self);
+	bless($self,$class);
+
+	$self->{nextPage}=CPANPLUS::Shell::Wx::UpdateWizard::ProgressPage->new($self->{parent});
+	$self->{nextPage}->SetPrev($self);
+
+	return $self;
+
+}
+sub Populate{
+	my $self=shift;
+	$parent=$self->{parent};
+	my $list=$parent->{theList};
+	my $listctrl=$parent->{update_list};
+	$listctrl->Clear();
+#	print Dumper $list;
+
+	my @mods=();
+	my $num=1;
+
+	foreach $area (keys(%$list)){
+		#skip 'features' and 'areas' since the need special handling
+		next if ($area eq 'areas_to_update' || $area eq 'features' || 
+			$area eq 'enabled_features' || !($list->{areas_to_update}->{$area}) 
+			);
+		foreach $name (keys(%{$list->{$area}})){
+			push(@mods,"$name v".$list->{$area}->{$name} ) unless grep(/^$name\sv/,@mods);
+			$num++;
+		}
+	}
+	if ($list->{areas_to_update}->{features}){
+		foreach $confDep (keys(%{$list->{features}})){
+			my $confDepList=$list->{features}->{$confDep};
+			next if ref($confDepList) eq 'SCALAR'; #skip empty refs
+			$confDepList=$$confDepList if ref($confDepList) eq 'REF';
+			foreach $name (keys(%{$confDepList})){
+				push (@mods,"$name v".$confDepList->{$name} ) unless grep(/^$name\sv/,@mods);
+				$num++;
+			}
+		}
+	}
+	if ($list->{areas_to_update}->{enabled_features}){
+		foreach $confDep (keys(%{$list->{enabled_features}})){
+			my $confDepList=$list->{enabled_features}->{$confDep};
+			next if ref($confDepList) eq 'SCALAR'; #skip empty refs
+			$confDepList=$$confDepList if ref($confDepList) eq 'REF';
+			foreach $name (keys(%{$confDepList})){
+				push (@mods,"$name v".$confDepList->{$name} ) unless grep(/^$name\sv/,@mods);
+				$num++;
+			}
+		}
+	}
+
+	#add all the items to the list
+	foreach $m (@mods){
+		$listctrl->Append( $m );
+	}
+	#select all the items
+	foreach $i (0..@mods){
+		#$parent->{update_list}->Check($i);
+		$parent->{update_list}->SetSelection($i);
+	}
+}
+#page 4
+package CPANPLUS::Shell::Wx::UpdateWizard::ProgressPage;
+
+use base qw(CPANPLUS::Shell::Wx::UpdateWizard::Page);
+use Wx qw/:allclasses wxHORIZONTAL
+	wxVERTICAL wxADJUST_MINSIZE wxDefaultPosition wxDefaultSize wxTE_MULTILINE 
+	wxTE_READONLY wxTE_CENTRE wxTE_WORDWRAP wxALIGN_CENTER_VERTICAL wxEXPAND
+	wxALIGN_CENTER_HORIZONTAL wxSUNKEN_BORDER wxGA_HORIZONTAL wxGA_SMOOTH/;
+use Wx::Event qw(EVT_WIZARD_PAGE_CHANGED EVT_WINDOW_CREATE);
+use Data::Dumper;
+
+use Wx::Locale gettext => '_T';
+
+sub new{
+	my $class = shift;
+	my ($parent) = @_;
+    my $self = $class->SUPER::new($parent);
+	
+	$txt= Wx::TextCtrl->new($self, -1, _T("Please wait while we install the selected modules."), wxDefaultPosition, wxDefaultSize, wxTE_MULTILINE|wxTE_READONLY|wxTE_CENTRE|wxTE_WORDWRAP);
+	$parent->{progress} = Wx::Gauge->new($self, -1, 1000, wxDefaultPosition,     wxDefaultSize, wxGA_HORIZONTAL|wxGA_SMOOTH);
+	$parent->{status_text} = Wx::StaticText->new($self, -1, _T("Status text..."), wxDefaultPosition, wxDefaultSize, );
+
+	$txt->Enable(0);
 
 	$sizer = Wx::BoxSizer->new(wxVERTICAL);
 	$sizer->Add($txt, 0, wxEXPAND|wxADJUST_MINSIZE, 0);
-	$sizer->Add($self->{update_list}, 1, wxEXPAND, 0);
-	$page->SetSizer($sizer);
-	$sizer->Fit($page);
+	$sizer->Add($parent->{progress}, 0, wxEXPAND|wxADJUST_MINSIZE, 0);
+	$sizer->Add($parent->{status_text}, 0, wxEXPAND|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL|wxADJUST_MINSIZE, 0);
+	$self->SetSizer($sizer);
+	$sizer->Fit($self);
 
-	return $page;
+	$self->{nextPage}=CPANPLUS::Shell::Wx::UpdateWizard::ReportPage->new($self->{parent});
+	$self->{nextPage}->SetPrev($self);
 
+	return $self;
+	
 }
 
-sub _get_report_page{
-	my $self=shift;
-	
-	my $page=Wx::WizardPageSimple->new( $self );
-	$self->{problems} = Wx::TextCtrl->new($page, -1, _T("If there were any problems, they are listed below."), wxDefaultPosition, wxDefaultSize, wxTE_MULTILINE|wxTE_READONLY|wxTE_CENTRE|wxTE_WORDWRAP);
+#page 4
+package CPANPLUS::Shell::Wx::UpdateWizard::ReportPage;
 
+use base qw(CPANPLUS::Shell::Wx::UpdateWizard::Page);
+use Wx qw/:allclasses wxHORIZONTAL
+	wxVERTICAL wxADJUST_MINSIZE wxDefaultPosition wxDefaultSize wxTE_MULTILINE 
+	wxTE_READONLY wxTE_CENTRE wxTE_WORDWRAP wxALIGN_CENTER_VERTICAL wxEXPAND
+	wxALIGN_CENTER_HORIZONTAL wxSUNKEN_BORDER/;
+use Wx::Event qw(EVT_WIZARD_PAGE_CHANGED EVT_WINDOW_CREATE);
+use Data::Dumper;
 
-	$self->SetTitle(_T("wxCPAN Update Wizard Finished"));
-	$self->{problems}->Enable(0);
+use Wx::Locale gettext => '_T';
 
+sub new{
+	my $class = shift;
+	my ($parent) = @_;
+    my $self = $class->SUPER::new($parent);
+
+	$parent->{problems} = Wx::TextCtrl->new($self, -1, _T("If there were any problems, they are listed below."), wxDefaultPosition, wxDefaultSize, wxTE_MULTILINE|wxTE_READONLY|wxTE_CENTRE|wxTE_WORDWRAP);
+	$parent->{problems}->Enable(0);
 
 	$sizer = Wx::BoxSizer->new(wxVERTICAL);
-	$sizer->Add($self->{problems}, 1, wxEXPAND|wxADJUST_MINSIZE, 0);
-	$page->SetSizer($sizer);
-	$sizer->Fit($page);
+	$sizer->Add($parent->{problems}, 1, wxEXPAND|wxADJUST_MINSIZE, 0);
+	$self->SetSizer($sizer);
+	$sizer->Fit($self);
 
-	return $page;
+	return $self;
 	
 }
 

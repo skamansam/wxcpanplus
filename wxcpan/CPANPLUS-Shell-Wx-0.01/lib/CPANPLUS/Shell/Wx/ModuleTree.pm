@@ -1,4 +1,4 @@
-
+#TODO make the moduletree a TreeCtrl and this module a panel
 package CPANPLUS::Shell::Wx::ModuleTree;
 
 use Wx qw/wxPD_APP_MODAL wxPD_APP_MODAL wxPD_CAN_ABORT 
@@ -12,6 +12,7 @@ use Wx::ArtProvider qw/:artid :clientid/;
 use Data::Dumper;
 use YAML qw/LoadFile Load/;
 use File::Spec;
+use File::Path;
 use Storable;
 
 use threads;
@@ -81,7 +82,7 @@ sub new {
 	$self->AddRoot(_T('Modules'));
 	
 	#create links to events
-	EVT_WINDOW_CREATE( $self, $self, \&OnCreate );			#when the tree is created
+#	EVT_WINDOW_CREATE( $self, $self, \&OnCreate );			#when the tree is created
 	EVT_TREE_SEL_CHANGED( $self, $self, \&OnSelChanged);	#when a user changes the selection
 	EVT_TREE_ITEM_ACTIVATED($self, $self, \&ShowPODReader);	#When the user double-clicks an item
 	EVT_TREE_ITEM_RIGHT_CLICK( $self, $self, \&ShowPopupMenu );#when the user wants a pop-up menu
@@ -90,7 +91,8 @@ sub new {
 }
 
 #this is called when the control is created.
-sub OnCreate {
+#sub OnCreate {
+sub Init {
 	my $self = shift;
 	my ($event)=@_;
 
@@ -99,15 +101,9 @@ sub OnCreate {
 	$self->{cpan}=$self->{parent}->{cpan};
 	$self->{config}=$self->{cpan}->configure_object();
 	
-	#create references to icons for listbox
-	my $imgList=Wx::ImageList->new(16,16,1);
-		$self->{icon_installed}=$imgList->Add($self->{parent}->{icon_installed});
-		$self->{icon_update}=$imgList->Add($self->{parent}->{icon_update});
-		$self->{icon_remove}=$imgList->Add($self->{parent}->{icon_remove});
-		$self->{icon_not_installed}=$imgList->Add($self->{parent}->{icon_not_installed});
-		$self->{icon_unknown}=$imgList->Add($self->{parent}->{icon_unknown});
-	$self->AssignImageList($imgList);
-	Wx::Window::FindWindowByName('info_prereqs')->AssignImageList($imgList);
+	#$self->AssignImageList($imgList);
+
+#	Wx::Window::FindWindowByName('info_prereqs')->AssignImageList($imgList);
 	#show info on what we are doing
 	Wx::LogMessage _T("Showing "),$self->{'show'},_T(" by "),$self->{'sort'};
 
@@ -121,13 +117,7 @@ sub OnCreate {
 	
 	$self->{podReader}=$self->{parent}->{podReader} || CPANPLUS::Shell::Wx::PODReader::Frame->new($self);
 
-	#for testing purposes, insert test values 
-	my @testMods=qw/CPAN Cache::BerkeleyDB CPANPLUS Module::NoExist Muck Acme::Time::Baby Wx/;
-		foreach $item (sort(@testMods)){
-			$self->AppendItem($self->GetRootItem(),$item,$self->_get_status_icon($item));
-		}
-		
-	#$self->SetWindowStyle($self->GetWindowStyleFlag()|wxVSCROLL|wxALWAYS_SHOW_SB);
+	$self->SetWindowStyle($self->GetWindowStyleFlag()|wxVSCROLL|wxALWAYS_SHOW_SB);
 	_uShowErr;
 }
 
@@ -151,10 +141,11 @@ sub ShowPopupMenu{
 	#we can't do any actions on unknown modules
 	return if $self->GetItemImage($event->GetItem()) == 4;
 	#create the menu
-	my $menu= CPANPLUS::Shell::Wx::ModuleTree::Menu->new($self,$event->GetItem());
+	$self->{menu}= CPANPLUS::Shell::Wx::ModuleTree::Menu->new($self,$event->GetItem());
 	#show the menu
-	$self->PopupMenu($menu,$event->GetPoint());
+	$self->PopupMenu($self->{menu},$event->GetPoint());
 }
+
 
 #this method shows the PODReader tab and displays the documentation for the selected module
 sub ShowPODReader{
@@ -209,7 +200,7 @@ sub OnSelChanged{
 	#set global variable for name of what the user selected
 	$self->{thisName}=$self->GetItemText($self->GetSelection());
 	#set global variable for CPANPLUS::Module object of what the user selected
-	$self->{thisMod}=$self->{cpan}->module_tree($self->{thisName});
+	$self->{thisMod}=$self->_get_mod($self->{thisName});
 	#reset all info in Info pane
 	$self->_info_reset();
 	#return if we can't get an object reference
@@ -218,28 +209,80 @@ sub OnSelChanged{
 	$self->_info_get_info();
 }
 
+#this method check to see which prerequisites have not been met
+# We only want recursion when a prereq is NOT installed.
+#returns a list of prerequisites, in reverse install order
+# i.e. $list[-1] needs to be installed first
+sub CheckPrerequisites{
+	my $self=shift;
+	my $modName=shift;
+	my $version=shift||'';
+	my $pre=$self->GetPrereqs($modName,$version);
+#	print Dumper $pre; 
+	return;
+	my @updates=();
+	foreach $name (@$pre){
+		my $mod=$self->_get_mod($name);
+		next unless $mod;
+		if ($mod->installed_version && $mod->installed_version >= $pre->{$key}){
+			$self->{statusBar}->SetStatusText($mod->name." v".$mod->installed_version._T(" is sufficient."));
+		}else{
+			$self->{statusBar}->SetStatusText($mod->name." v".$mod->installed_version._T(" needs to be updated to ").$name);
+			push (@updates,$name);
+			push (@updates,$self->CheckPrerequisites($name));
+		}
+	}
+	return @updates;
+}
+#Get module.yml from search.cpan.org and get prereqs from there.
+#store in $HOME/.cpanplus/authors/X/XX/.../module.yml
+sub _info_get_prereqs{	
+	my $self=shift;
+	my $mod=shift||$self->{thisMod};
+	my $version=shift||'';
+	#print "_info_get_prereqs($mod)\n";
+	return unless $mod;
+	#set up variables for retrieveing and setting data
+	$self->{thisPrereq}=[];
+	
+	#get correct control and clear all items
+	my $preTree=Wx::Window::FindWindowByName('info_prereqs');
+	$preTree->DeleteAllItems();
+	my $root=$preTree->AddRoot('prereqs');
+
+	#append all prerequisites to root item
+	$self->_append_prereq($self->_get_modname($mod,$version),$preTree,$root);
+
+	#show any CPANPLUS errors in Log tab
+	_uShowErr;
+}
+
 #this method fetches the META.yml file from
 #search.cpan.org and parses it using YAML.
 #It returns the Prerequisites for the given module name
 # or the currently selected module, if none given.
 # It stores the yml data in the same hierarchy as CPANPLUS
 #stores its readme files and other data.
-#returns: a hash like {'modulename'=>'version','nextmodulename'=>version}
+#returns: a list of modules that can be parsed by parse_module()
 sub GetPrereqs{
 	my $self=shift;
 	my $modName=shift || $self->{thisName};
-	my $mod=$self->{cpan}->module_tree($modName);
+	my $version=shift||'';
+	print "GetPrereqs($modName) \n ";
+	my $mod=$self->_get_mod($modName,$version);
+#	print $modName.(($version)?"-$version":'')."\n";
+	print Dumper $mod;
 	return unless $mod; #if we can't get a module from the name, return
 	
 	#set up the directory structure fro storing the yml file
 	my $storedDir=File::Spec->catdir($ENV{HOME},".cpanplus","authors","id"); #the top-level directory for storing files
 	my $author=$mod->author->cpanid; #get the cpanid of the author
 	my @split=split('',$author); #split the author into an array so we can:
-	my $dest=File::Spec->catdir($storedDir.$split[0],$split[0].$split[1],$author); #extract the first letters
+	my $dest=File::Spec->catdir($storedDir,$split[0],$split[0].$split[1],$author); #extract the first letters
 	my $package=$mod->package_name.'-'.$mod->package_version; #name the file appropriately
 	$dest=File::Spec->catfile($dest,"$package.yml");
 	my $src="http://search.cpan.org/src/$author/$package/META.yml"; #where we are getting the file from
-	
+
 	my $ymldata=''; #the yaml data
 	#if we already have this file, read it. Otherwise, get it from web
 	if (-e $dest){
@@ -250,32 +293,76 @@ sub GetPrereqs{
 		$yml=get($src);
 		$ymldata=Load($yml);		
 	}
+
 	#return the prequisites
-	return $ymldata->{'requires'} || {};
-}
-#this method check to see which prerequisites have not been met
-# We only want recursion when a prereq is NOT installed.
-#returns a list of prerequisites, in reverse install order
-# i.e. $list[-1] needs to be installed first
-sub CheckPrerequisites{
-	my $self=shift;
-	my $modName=shift;
-	my $pre=$self->GetPrereqs($modName);
-	my @updates=();
-	foreach $key (keys(%$pre)){
-		my $mod=$self->{cpan}->module_tree($key);
-		next unless $mod;
-		if ($mod->installed_version && $mod->installed_version >= $pre->{$key}){
-			$self->{statusBar}->SetStatusText($mod->name." v".$mod->installed_version._T(" is sufficient."));
-		}else{
-			$self->{statusBar}->SetStatusText($mod->name." v".$mod->installed_version._T(" needs to be updated to ").$pre->{$key});
-			push (@updates,$key);
-			push (@updates,$self->CheckPrerequisites($key));
-		}
+	my $reqs=$ymldata->{'requires'}||{};
+	my @ret=();
+	foreach $modName (keys(%$reqs)){
+		$name=$self->_get_mod($modName,{version=>$reqs->{$modName}});
+#		print "$name-".$reqs->{$key}."\n";
+		push(@ret,"$name");
 	}
-	return @updates;
+
+	return \@ret;
 }
 
+#appends prequisites the given tree.
+#parameters: 
+#	$module_name, $treeCtrl, $parentNodeInTree = $treeCtrl->GetRootItem
+sub _append_prereq{
+	my $self=shift;
+	my $modName=shift;
+	my $preTree=shift;
+	my $parentNode=shift || $preTree->GetRootItem();	
+	#set up variables for retrieveing and setting data
+	print "_append_prereq($modName)\n";
+
+	my $pre=$self->GetPrereqs($modName);
+	#print Dumper $pre;
+	foreach $mod (@$pre){
+		push (@{$self->{thisPrereq}},$mod) unless ( grep($mod,@{$self->{thisPrereq}}) );
+		my $pNode=$preTree->AppendItem($parentNode,$mod,$self->_get_status_icon($mod));
+		$self->_append_prereq($mod,$preTree,$pNode);
+	}
+}
+
+#this method returns a module for the given name.
+# it is OK to pass an existing module ref, as it will
+# simply return the ref. You can use this to validate 
+# all modules and names. You can pass an optional 
+# boolean denoting whether you would like to return the name
+# so parse_module can understand it.
+sub _get_mod{
+	my ($self,$mod,$options)=@_;
+	print 'usage: $tree->_get_mod($modObject|$name '.
+		'[,{[version=>$version,] [mod=>$modObject,] [getname=>0|1]}])'."\n"
+		unless ref($options) eq 'HASH';
+	
+	my $version=$options->{version}?"-".$options->{version}:''; #the version we want
+#	my $name=$options->{name};									#the name we want
+	$mod=$mod || $options->{mod};								#the moduleObject or name
+	$onlyName=$options->{getname} || 0;							#return just the name?
+	
+#	print "_get_mod($name,$version,$onlyName)\n";
+	#if a module ref is passed, return the ref or the package_name
+	if (ref($mod) && ($mod->isa('CPANPLUS::Module') or $mod->isa('CPANPLUS::Module::Fake'))){
+		if ($version){
+			my $modname=$mod->name;
+			$modname =~ s/::/-/g;									#parse out the colons in the name
+			$mod=$self->{cpan}->parse_module(module=>$modname.$version );
+			#return $newMod;
+		}
+		if ($onlyName){
+			return $mod->package_name;
+		}else{
+			return $mod;
+		}
+	}
+	$mod =~ s/::/-/g;									#parse out the colons in the name
+	$mod=$self->{cpan}->parse_module(module=>$mod.$version); #get the module
+	return $mod->package_name if ($mod && $onlyName);	#return the name if we want to
+	return $mod;										#otherwise, return the module object
+}
 ###############################
 ####### PRIVATE METHODS #######
 ###############################
@@ -369,45 +456,7 @@ sub _info_get_files{
 	_uShowErr;
 }
 
-#Get module.yml from search.cpan.org and get prereqs from there.
-#store in $HOME/.cpanplus/authors/X/XX/.../module.yml
-sub _info_get_prereqs{	
-	my $self=shift;
-	my $mod=shift||$self->{thisMod};
-	return unless $mod;
-	#set up variables fro retrieveing and setting data
-	$self->{thisPrereq}=[];
-	
-	#get correct control and clear all items
-	my $preTree=Wx::Window::FindWindowByName('info_prereqs');
-	$preTree->DeleteAllItems();
-	my $root=$preTree->AddRoot('prereqs');
 
-	#append all prerequisites to root item
-	$self->_append_prereq($mod->name,$preTree,$root);
-
-	#show any CPANPLUS errors in Log tab
-	_uShowErr;
-}
-
-
-#appends prequisites the given tree.
-#parameters: 
-#	$module_name, $treeCtrl, $parentNodeInTree = $treeCtrl->GetRootItem
-sub _append_prereq{
-	my $self=shift;
-	my $modName=shift;
-	my $preTree=shift;
-	my $parentNode=shift || $preTree->GetRootItem();	
-	#set up variables for retrieveing and setting data
-
-	my $pre=$self->GetPrereqs($modName);
-	foreach $key (keys(%$pre)){
-		push (@{$self->{thisPrereq}},$key) unless ( grep($key,@{$self->{thisPrereq}}) );
-		my $pNode=$preTree->AppendItem($parentNode,"$key [".$pre->{$key}."]",$self->_get_status_icon($key));
-		$self->_append_prereq($key,$preTree,$pNode);
-	}
-}
 sub _info_get_info{	
 	my $self=shift;
 	my $mod=shift||$self->{thisMod};
@@ -621,9 +670,20 @@ sub _info_get_report_this{
 sub _install_module{
 	my $self=shift;
 	my $mod=shift||$self->{thisMod};
+	my $version=shift||'';
 	return unless $mod;
-	$self->{statusBar}->SetStatusText(_T("Checking Prerequisites for ").$mod->name."...");
-	$self->_install_with_prereqs($mod->name);
+
+	#if no version supplied, check version list in Actions tab
+	unless ($version){
+		my $versionList=Wx::Window::FindWindowByName('info_distributions');
+		$version=$versionList->GetValue() || '';
+	}
+	my $fullname=$mod->name.'-'.$version;
+	$self->{statusBar}->SetStatusText(_T("Installing ").$fullname."...");
+	
+	#$mod=$self->{cpan}->parse_module(module => $mod->name.'-'.$version) if $version;
+#	print Dumper $mod;
+	$self->_install_with_prereqs($mod->name,$version);
 
 	_uShowErr;
 }
@@ -632,11 +692,16 @@ sub _install_with_prereqs{
 	my $self=shift;
 	my $modName=shift;
 	return unless $modName;
-	my @prereqs=$self->CheckPrerequisites($modName);
+	my $version=shift||'';
+	my @prereqs=$self->CheckPrerequisites($modName,$version);
 	#print Dumper @prereqs;
-	unshift (@prereqs,$modName);
-	my @mods=$self->{cpan}->module_tree(reverse(@prereqs));
-#	print Dumper @mods;
+	unshift (@prereqs,$modName.($version?"-$version":''));
+	my @mods=();			#$self->{cpan}->module_tree(reverse(@prereqs));
+	foreach $n (reverse(@prereqs)){
+		push @mods, $self->{cpan}->parse_module(module=>$n);
+	}
+
+	#print Dumper @mods;
 	my $curMod;
 	my $isSuccess=1;
 	foreach $mod (@mods){
@@ -668,7 +733,7 @@ sub _store_status{
 	my $self=shift;
 	my @mods=@_;
 	my $status={};
-	my $file=File::Spec->catfile($ENV{'HOME'}.'.cpanplus','status.stored');
+	my $file=File::Spec->catfile($ENV{'HOME'},'.cpanplus','status.stored');
 	$status=retrieve($file) if (-e $file);
 	foreach $mod (@mods){
 		$status->{$mod->name}=$mod->status();
@@ -677,12 +742,12 @@ sub _store_status{
 }
 sub _fetch_module{
 	my $self=shift;
-	my $mod=shift;
-	$mod=$self->{thisMod} unless $mod;
-	$mod = $self->{cpan}->module_tree($mod) unless $mod->isa('CPANPLUS::Module');
+	my $mod=shift || $self->{thisMod};
+	$mod = $self->{cpan}->parse_module(module=>$mod) unless ($mod->isa('CPANPLUS::Module') || $mod->isa('CPANPLUS::Module::Fake'));
 	return unless $mod;
-	$self->{statusBar}->SetStatusText(_T('Fetching ').$mod->name);
-	my $path=$self->{thisMod}->fetch();
+	#print Dumper $mod;
+	$self->{statusBar}->SetStatusText(_T('Fetching ').$mod->{'package'});
+	my $path=$mod->fetch();
 	return 0 unless $path;
 	_uShowErr;
 	return 1;
@@ -690,24 +755,22 @@ sub _fetch_module{
 
 sub _extract_module{
 	my $self=shift;
-	my $mod=shift;
-	$mod=$self->{thisMod} unless $mod;
-	$mod = $self->{cpan}->module_tree($mod) unless $mod->isa('CPANPLUS::Module');
+	my $mod=shift || $self->{thisMod};
+	$mod = $self->{cpan}->parse_module(module=>$mod) unless ($mod->isa('CPANPLUS::Module') || $mod->isa('CPANPLUS::Module::Fake'));
 	return unless $mod;
 	$self->{statusBar}->SetStatusText(_T('Extracting ').$mod->name);
-	my $path=$self->{thisMod}->extract();
+	my $path=$mod->extract();
 	return 0 unless $path;
 	_uShowErr;
 	return 1;
 }
 sub _prepare_module{
 	my $self=shift;
-	my $mod=shift;
-	$mod=$self->{thisMod} unless $mod;
-	$mod = $self->{cpan}->module_tree($mod) unless $mod->isa('CPANPLUS::Module');
+	my $mod=shift || $self->{thisMod};
+	$mod = $self->{cpan}->parse_module(module=>$mod) unless ($mod->isa('CPANPLUS::Module') || $mod->isa('CPANPLUS::Module::Fake'));
 	return unless $mod;
 	$self->{statusBar}->SetStatusText(_T('Preparing ').$mod->name);
-	my $path=$self->{thisMod}->prepare();
+	my $path=$mod->prepare();
 	return 0 unless $path;
 	_uShowErr;
 	return 1;
@@ -715,24 +778,22 @@ sub _prepare_module{
 
 sub _create_module{
 	my $self=shift;
-	my $mod=shift;
-	$mod=$self->{thisMod} unless $mod;
-	$mod = $self->{cpan}->module_tree($mod) unless $mod->isa('CPANPLUS::Module');
+	my $mod=shift || $self->{thisMod};
+	$mod = $self->{cpan}->parse_module(module=>$mod) unless ($mod->isa('CPANPLUS::Module') || $mod->isa('CPANPLUS::Module::Fake'));
 	return unless $mod;
 	$self->{statusBar}->SetStatusText(_T('Building ').$mod->name);
-	my $path=$self->{thisMod}->create();
+	my $path=$mod->create();
 	return 0 unless $path;
 	_uShowErr;
 	return 1;
 }
 sub _test_module{
 	my $self=shift;
-	my $mod=shift;
-	$mod=$self->{thisMod} unless $mod;
-	$mod = $self->{cpan}->module_tree($mod) unless $mod->isa('CPANPLUS::Module');
+	my $mod=shift || $self->{thisMod};
+	$mod = $self->{cpan}->parse_module(module=>$mod) unless ($mod->isa('CPANPLUS::Module') || $mod->isa('CPANPLUS::Module::Fake'));
 	return unless $mod;
 	$self->{statusBar}->SetStatusText(_T('Testing ').$mod->name);
-	my $path=$self->{thisMod}->test();
+	my $path=$mod->test();
 	return 0 unless $path;
 	_uShowErr;
 	return 1;
@@ -1586,62 +1647,45 @@ sub PopulateWithModuleList{
 	return 1;
 }
 
-#this method returns a wxBitmap depending on the status of the passed name
+#this method returns the index in the imageList for the status of the passed name
 sub _get_status_icon{
 	my $self=shift;
 	my ($name)=@_;
-	my @mods=$self->{cpan}->module_tree($name);
-	return $self->{icon_unknown} unless $mods[0];
-	return $self->{icon_installed} if $mods[0]->is_uptodate();
-	return $self->{icon_not_installed} if !$mods[0]->installed_version();
-	return $self->{icon_update};
+	my $mod=$self->{cpan}->parse_module(module=>$name);
+	return $self->{iconList}->{unknown}->{idx} unless $mod;
+	return $self->{iconList}->{installed}->{idx} if $mod->is_uptodate();
+	return $self->{iconList}->{not_installed}->{idx} if !$mod->installed_version();
+	return $self->{iconList}->{update}->{idx};
 	
 	_uShowErr;
 	
 }
-########################################
-########### Search Button ##############
-########################################
-
-package CPANPLUS::Shell::Wx::ModuleTree::Menu;
-use base 'Wx::Menu';
-use Wx::Event qw/EVT_WINDOW_CREATE EVT_MENU/;
-use Data::Dumper;
-sub new {
-	my $class = shift;
-	my $parent=shift;
-	my $item=shift;
-	my $self  = $class->SUPER::new();    # create an 'empty' menu object
-	#get image so we can determine what the status is
-	my $img=$parent->GetItemImage($item);
-
-	$batch=new Wx::Menu();
-	$batch_install=$batch->Append(1000,_T("Install")) if $img == 3;
-	$batch_update=$batch->Append(1001,_T("Update")) if $img == 1;
-	$batch_uninstall=$batch->Append(1002,_T("Uninstall")) if ($img==0 or $img==1);
-	$sep1=$batch->AppendSeparator();
-	$batch_fetch=$batch->Append(1003,_T("Fetch"));
-	$batch_extract=$batch->Append(1004,_T("Extract"));
-	$batch_prepare=$batch->Append(1005,_T("Prepare"));
-	$batch_build=$batch->Append(1006,_T("Build"));
-	$batch_test=$batch->Append(1007,_T("Test"));
-
-	$self->AppendSubMenu($batch,("Batch"));
-
-	$getall=$self->Append(1008,_T("Get All Information"));
-	
-	my $modName=$parent->GetItemText($item);
-	EVT_MENU( $self, $getall, sub{GetInfo(@_,$modName)});
-	EVT_MENU( $batch, $batch_install, sub {BatchInstall(@_,$modName)}) if $img == 3;
-	EVT_MENU( $batch, $batch_update, sub {BatchUpdate(@_,$modName)} ) if $img == 1;
-	EVT_MENU( $batch, $batch_uninstall, sub {BatchUninstall(@_,$modName)} )if ($img==0 or $img==1);
-	EVT_MENU( $batch, $batch_fetch, sub {BatchFetch(@_,$modName)} );
-	EVT_MENU( $batch, $batch_prepare, sub {BatchPrepare(@_,$modName)} );
-	EVT_MENU( $batch, $batch_build, sub {BatchBuild(@_,$modName)} );
-	EVT_MENU( $batch, $batch_test, sub {BatchTest(@_,$modName)} );
-	
-	return $self;
+sub SetImageList{								#must be a Wx::ImageList
+	my ($self,$list)=@_;
+	$self->{iconList}=$list;
+	$self->AssignImageList($list->{imageList});
 }
+
+########################################
+########### Context Menu ##############
+########################################
+
+
+#the following methods are for setting the event handlers for the various 
+# menu items in the context menu. They all take one parameter:a code ref
+#The code ref is then executed with three parameters: 
+# the menu [Wx::Menu], the event [Wx::CommandEvent], and the name of the selected module 
+sub SetInfoHandler{$_[0]->{_minfoHandler}=$_[1];}
+sub SetInstallMenuHandler{$_[0]->{_minstallHandler}=$_[1];}
+sub SetUpdateMenuHandler{$_[0]->{_mupdateHandler}=$_[1];}
+sub SetUninstallMenuHandler{$_[0]->{_muninstallHandler}=$_[1];}
+sub SetFetchMenuHandler{$_[0]->{_mfetchHandler}=$_[1];}
+sub SetPrepareMenuHandler{$_[0]->{_mprepareHandler}=$_[1];}
+sub SetBuildMenuHandler{$_[0]->{_mbuildHandler}=$_[1];}
+sub SetTestMenuHandler{$_[0]->{_mtestHandler}=$_[1];}
+sub SetExtractMenuHandler{$_[0]->{_mextractHandler}=$_[1];}
+sub SetSelectHandler{$_[0]->{_selectHandler}=$_[1];}
+sub SetDblClickHandler{$_[0]->{_dblClickHandler}=$_[1];}
 
 sub GetInfo{
 	my ($menu,$cmd_event,$modName)=@_;
@@ -1650,9 +1694,10 @@ sub GetInfo{
 	$modtree->_get_more_info($modtree->{cpan}->module_tree($modName));
 }
 sub BatchInstall{
-	my ($menu,$cmd_event,$modName)=@_;
+	my ($self,$menu,$cmd_event,$modName)=@_;
 	my $actionslist=Wx::Window::FindWindowByName('main_actions_list');
 	my $modtree=Wx::Window::FindWindowByName('tree_modules');
+	print "Adding $modName to batch.\n";
 	$actionslist->InsertStringItem( 0, $modName );
 	$actionslist->SetItem( 0, 1, "Install" );
 	my @prereqs=$modtree->CheckPrerequisites($modName);
@@ -1693,6 +1738,13 @@ sub BatchFetch{
 	$actionslist->SetItem( 0, 1, _T("Fetch") );
 
 }
+sub BatchExtract{
+	my ($menu,$cmd_event,$modName)=@_;
+	my $actionslist=Wx::Window::FindWindowByName('main_actions_list');
+	$actionslist->InsertStringItem( 0, $modName );
+	$actionslist->SetItem( 0, 1, _T("Extract") );
+
+}
 sub BatchPrepare{
 	my ($menu,$cmd_event,$modName)=@_;
 	my $actionslist=Wx::Window::FindWindowByName('main_actions_list');
@@ -1711,6 +1763,49 @@ sub BatchTest{
 	my $actionslist=Wx::Window::FindWindowByName('main_actions_list');
 	$actionslist->InsertStringItem( 0, $modName );
 	$actionslist->SetItem( 0, 1, _T("Test") );
+}
+
+package CPANPLUS::Shell::Wx::ModuleTree::Menu;
+use base 'Wx::Menu';
+use Wx::Event qw/EVT_WINDOW_CREATE EVT_MENU/;
+use Data::Dumper;
+use Wx::Locale gettext => '_T';
+
+sub new {
+	my $class = shift;
+	my $parent=shift;
+	my $item=shift;
+	my $self  = $class->SUPER::new();    # create an 'empty' menu object
+	#get image so we can determine what the status is
+	$img=$parent->GetItemImage($item);
+	$actions=new Wx::Menu();
+	$install=$actions->Append(1000,_T("Install")) if $img == 3;
+	$update=$actions->Append(1001,_T("Update")) if $img == 1;
+	$uninstall=$actions->Append(1002,_T("Uninstall")) if ($img==0 or $img==1);
+	$actions->AppendSeparator();
+	$fetch=$actions->Append(1003,_T("Fetch"));
+	$extract=$actions->Append(1004,_T("Extract"));
+	$prepare=$actions->Append(1005,_T("Prepare"));
+	$build=$actions->Append(1006,_T("Build"));
+	$test=$actions->Append(1007,_T("Test"));
+
+	$self->AppendSubMenu($actions,_T("Actions"));
+
+	$info=$self->Append(1008,_T("Get All Information"));
+	
+	my $modName=$parent->GetItemText($item);
+
+	EVT_MENU( $self, $info, sub{&{$parent->{_minfoHandler}}(@_,$modName)} ) if $parent->{_minfoHandler};
+	EVT_MENU( $actions, $install, sub{&{$parent->{_minstallHandler}}(@_,$modName)} ) if ($img == 3 && $parent->{_minstallHandler});
+	EVT_MENU( $actions, $update, sub{&{$parent->{_mupdateHandler}}(@_,$modName)} ) if ($img == 1 && $parent->{_minstallHandler});
+	EVT_MENU( $actions, $uninstall, sub{&{$parent->{_muninstallHandler}}(@_,$modName)} )if (($img==0 or $img==1) && $parent->{_minstallHandler});
+	EVT_MENU( $actions, $fetch, sub{&{$parent->{_mfetchHandler}}(@_,$modName)} )  if $parent->{_minstallHandler};
+	EVT_MENU( $actions, $prepare, sub{&{$parent->{_mprepareHandler}}(@_,$modName)} ) if $parent->{_minstallHandler};
+	EVT_MENU( $actions, $build, sub{&{$parent->{_mbuildHandler}}(@_,$modName)} ) if $parent->{_minstallHandler};
+	EVT_MENU( $actions, $test,sub{&{$parent->{_mtestHandler}}(@_,$modName)} ) if $parent->{_minstallHandler};
+	EVT_MENU( $actions, $extract, sub{&{$parent->{_mextractHandler}}(@_,$modName)} ) if $parent->{_minstallHandler};
+#	print "Ending ";	
+	return $self;
 }
 
 

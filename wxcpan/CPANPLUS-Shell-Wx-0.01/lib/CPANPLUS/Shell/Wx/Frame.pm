@@ -12,8 +12,11 @@ use Wx::Help qw/wxHF_DEFAULT_STYLE/;
 
 use CPANPLUS::Shell::Wx::Configure;
 use CPANPLUS::Shell::Wx::ModuleTree;
+use CPANPLUS::Shell::Wx::ModulePanel;
 use CPANPLUS::Shell::Wx::util;
 use CPANPLUS::Shell::Wx::PODReader;
+
+use File::Spec;
 
 #enable gettext support
 use Wx::Locale gettext => '_T';
@@ -37,12 +40,6 @@ sub OnCreate{
 	$self->{list}=Wx::Window::FindWindowByName('tree_modules');
 	
 	print _T("Setting up UI\n");
-	#ssetup various controls
-	$self->_setup_toolbar();
-	$self->_setup_menu();
-	$self->_setup_info_tabs();
-	$self->_setup_search();
-	$self->_setup_actionslist();
 	
 	#set the window icon to the default
 	$self->SetIcon(Wx::GetWxPerlIcon());
@@ -72,6 +69,14 @@ sub OnCreate{
 
 	$self->{is_created}=1;	
 	
+	#ssetup various controls
+	$self->_setup_toolbar();
+	$self->_setup_menu();
+	$self->_setup_info_tabs();
+	$self->_setup_search();
+	$self->_setup_modules();
+	$self->_setup_actionslist();
+
 	my $main_nb=Wx::Window::FindWindowByName('nb_main');
 	$self->{podReader}=CPANPLUS::Shell::Wx::PODReader::Embed->new($main_nb);
 	$main_nb->AddPage(
@@ -85,32 +90,76 @@ sub OnCreate{
 	#destroy splash screen, if any.
 	$self->{parent}->{splash}->Destroy if $self->{parent}->{splash};
 	
+	#check for updated version of CPANPLUS and First Time usage
 	$self->CheckUpdate();
-	
+	$self->CheckFirstTime();
+
 	#$self->ShowPrefs; #for testing
+
 	_uShowErr;
 }
 
+sub _setup_modules{
+	my $self=shift;
+	print "Setting up modules...\n";
+	my $panel=Wx::Window::FindWindowByName('nb_main_mod_tree_pane');
+
+	my $imgList=Wx::ImageList->new(16,16,1);
+	$self->{status_icons}={
+		'installed'=>{
+			idx=>$imgList->Add($self->{icon_installed}),
+			icon=>$self->{icon_installed} },
+		'update'=>{
+			idx=>$imgList->Add($self->{icon_update}),
+			icon=>$self->{icon_installed}},
+		'remove'=>{
+			idx=>$imgList->Add($self->{icon_remove}),
+			icon=>$self->{icon_remove} },
+		'not_installed'=>{
+			idx=>$imgList->Add($self->{icon_not_installed}),
+			icon=>$self->{icon_not_installed} },
+		'unknown'=>{
+			idx=>$imgList->Add($self->{icon_unknown}),
+			icon=>$self->{icon_unknown} },
+		'imageList'=>$imgList
+	};
+
+
+
+	print "Setting Module tree...\n";
+	$panel->SetModuleTree(Wx::Window::FindWindowByName('tree_modules'));
+#	print "Setting Image list...\n";
+	$panel->SetCPP($self->{cpan});
+	$panel->SetImageList($self->{status_icons});
+	print "Initializing...\n";
+	$panel->Init();
+	#$panel->BatchInstall(undef,undef,'Alter');
+}
 sub CheckUpdate{
 	my $self=shift;
 	my $cp=$self->{cpan}->module_tree('CPANPLUS');
 	unless ($cp->is_uptodate()){
 		my $reply=Wx::MessageBox(_T("CPANPLUS needs to be updated. Would you like to update now?"), _T("Update CPANPLUS?"),
                             wxYES_NO, $self);
-		$self->ShowUpdateWizard() if $reply==wxYES;
+        $self->ShowUpdateWizard() if ($reply==wxYES);
 	}
 	
 }
-sub ShowFirstWizard{
+sub CheckFirstTime{
 	my $self = shift;
 	my ($event) = @_;
-	
+	unless (-e File::Spec->catfile($ENV{'HOME'},'.wxcpan','conf.stored')){
+		my $reply=Wx::MessageBox(_T("This is the first time you have run wxCPAN. Would you like to review your preferences?"), _T("Update CPANPLUS?"),
+                            wxYES_NO, $self);
+			$self->ShowPrefs if $reply==wxYES;
+	}	
 }
 sub ShowUpdateWizard{
 	my $self = shift;
 	my ($event) = @_;
 	use CPANPLUS::Shell::Wx::UpdateWizard;
 	my $wizard=new CPANPLUS::Shell::Wx::UpdateWizard();
+	$wizard->SetCPPObject($self->{cpan});
 	$wizard->Run();
 	
 }
@@ -298,7 +347,6 @@ sub _setup_menu{
 	EVT_MENU( $self, Wx::XmlResource::GetXRCID('mnu_help_pod_reader'), \&ShowPODReader );
 	EVT_MENU( $self, Wx::XmlResource::GetXRCID('mnu_help_about'), \&ShowAboutBox );
 	EVT_MENU( $self, Wx::XmlResource::GetXRCID('mnu_help_help'), \&ShowHelpWindow );
-	EVT_MENU( $self, Wx::XmlResource::GetXRCID('mnu_help_firstwizard'), \&ShowFirstWizard );
 	EVT_MENU( $self, Wx::XmlResource::GetXRCID('mnu_help_updatewizard'), \&ShowUpdateWizard );
 
 }
