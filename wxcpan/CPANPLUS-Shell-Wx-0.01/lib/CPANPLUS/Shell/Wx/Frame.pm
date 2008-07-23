@@ -37,7 +37,7 @@ sub OnCreate{
 	my $self = shift;
 	my ($event) = @_;
 	return if $self->{is_created};	
-	$self->{list}=Wx::Window::FindWindowByName('tree_modules');
+	$self->{list}=Wx::Window::FindWindowByName('nb_main_mod_tree_pane');
 	
 	print _T("Setting up UI\n");
 	
@@ -72,8 +72,6 @@ sub OnCreate{
 	#ssetup various controls
 	$self->_setup_toolbar();
 	$self->_setup_menu();
-	$self->_setup_info_tabs();
-	$self->_setup_search();
 	$self->_setup_modules();
 	$self->_setup_actionslist();
 
@@ -105,36 +103,59 @@ sub _setup_modules{
 	my $panel=Wx::Window::FindWindowByName('nb_main_mod_tree_pane');
 
 	my $imgList=Wx::ImageList->new(16,16,1);
-	$self->{status_icons}={
-		'installed'=>{
-			idx=>$imgList->Add($self->{icon_installed}),
-			icon=>$self->{icon_installed} },
-		'update'=>{
-			idx=>$imgList->Add($self->{icon_update}),
-			icon=>$self->{icon_installed}},
-		'remove'=>{
-			idx=>$imgList->Add($self->{icon_remove}),
-			icon=>$self->{icon_remove} },
-		'not_installed'=>{
-			idx=>$imgList->Add($self->{icon_not_installed}),
-			icon=>$self->{icon_not_installed} },
-		'unknown'=>{
-			idx=>$imgList->Add($self->{icon_unknown}),
-			icon=>$self->{icon_unknown} },
-		'imageList'=>$imgList
-	};
+	$images=CPANPLUS::Shell::Wx::util::images->new(
+		installed => CPANPLUS::Shell::Wx::util::imagedata->new(
+				idx		=>	$imgList->Add($self->{icon_installed}),
+				icon	=>	$self->{icon_installed}
+			),
+		update => CPANPLUS::Shell::Wx::util::imagedata->new(
+				idx		=>	$imgList->Add($self->{icon_update}),
+				icon	=>	$self->{icon_update}
+			),
+		remove => CPANPLUS::Shell::Wx::util::imagedata->new(
+				idx		=>	$imgList->Add($self->{icon_remove}),
+				icon	=>	$self->{icon_remove}
+			),
+		not_installed => CPANPLUS::Shell::Wx::util::imagedata->new(
+				idx		=>	$imgList->Add($self->{icon_not_installed}),
+				icon	=>	$self->{icon_not_installed}
+			),
+		unknown => CPANPLUS::Shell::Wx::util::imagedata->new(
+				idx		=>	$imgList->Add($self->{icon_unknown}),
+				icon	=>	$self->{icon_unknown}
+			),
+		imageList=>$imgList
+		);
+	
+	$self->{status_icons}=$images;
 
-
-
-	print "Setting Module tree...\n";
+#	print "Setting Module tree...\n";
+	$self->{panel}=$panel;
 	$panel->SetModuleTree(Wx::Window::FindWindowByName('tree_modules'));
 #	print "Setting Image list...\n";
 	$panel->SetCPP($self->{cpan});
 	$panel->SetImageList($self->{status_icons});
-	print "Initializing...\n";
+	$panel->SetStatusBar(Wx::Window::FindWindowByName('main_window_status'));
+	$panel->SetPODReader($self->{podReader});
+	
+	print "Initializing ModulePanel...\n";
 	$panel->Init();
+	$panel->SetDblClickHandler(sub{$self->ShowPODReader(@_)});
 	#$panel->BatchInstall(undef,undef,'Alter');
 }
+
+#this method shows the PODReader tab and displays the documentation for the selected module
+sub ShowPODReader{
+	my $self     = shift;
+	my ($event)  = @_;
+	print "Showing POD Reader\n";
+#	$self->{podReader}=CPANPLUS::Shell::Wx::PODReader::Frame->new($self) unless $self->{podReader};	
+#	$self->{podReader}->Show(1) if ($self->{podReader} && $self->{podReader}->isa('Wx::Frame'));
+	$self->{podReader}->Search($self->{panel}->{thisName});
+	Wx::Window::FindWindowByName('nb_main')->ChangeSelection(3);
+	
+}
+
 sub CheckUpdate{
 	my $self=shift;
 	my $cp=$self->{cpan}->module_tree('CPANPLUS');
@@ -289,52 +310,7 @@ sub _setup_actionslist{
 	
 }
 
-#set up the search bar.
-sub _setup_search{
-	$self=shift;
-	my $searchbox=Wx::Window::FindWindowByName('cb_main_search');
-	my $typebox=Wx::Window::FindWindowByName('cb_search_type');
-	EVT_TEXT_ENTER( $self, 
-		Wx::XmlResource::GetXRCID('cb_main_search'),
-		sub{$self->{list}->search($typebox->GetValue,$searchbox->GetValue);} );
 
-	my @items=();
-
-	foreach $term (CPANPLUS::Module->accessors()){
-		$term=~s/^\_//;
-		push(@items,$term) unless grep(/$term/,@items) ;
-	}
-	foreach $term (CPANPLUS::Module::Author->accessors()){
-		$term=~s/^\_//;
-		push(@items,$term) unless grep(/$term/,@items) ;
-	}
-	$typebox->Append(ucfirst($_)) foreach (sort(@items));
-	#$typebox->SetValue(0);
-}
-
-
-sub _setup_info_tabs{
-	$self=shift;
-	#attach menu events
-	EVT_BUTTON( $self, Wx::XmlResource::GetXRCID('info_get_more_info'),sub{$self->{list}->_get_more_info()} );
-	EVT_BUTTON( $self, Wx::XmlResource::GetXRCID('info_get_readme'),sub{$self->{list}->_info_get_readme()} );
-	EVT_BUTTON( $self, Wx::XmlResource::GetXRCID('info_get_status'),sub{$self->{list}->_info_get_status()} );
-	EVT_BUTTON( $self, Wx::XmlResource::GetXRCID('info_get_prereqs'),sub{$self->{list}->_info_get_prereqs()} );
-	EVT_BUTTON( $self, Wx::XmlResource::GetXRCID('info_get_files'),sub{$self->{list}->_info_get_files()} );
-	EVT_BUTTON( $self, Wx::XmlResource::GetXRCID('info_get_versions'),sub{$self->{list}->_info_get_versions()} );
-	EVT_BUTTON( $self, Wx::XmlResource::GetXRCID('info_get_contents'),sub{$self->{list}->_info_get_contents()} );
-	EVT_BUTTON( $self, Wx::XmlResource::GetXRCID('info_get_report_this'),sub{$self->{list}->_info_get_report_this()} );
-	EVT_BUTTON( $self, Wx::XmlResource::GetXRCID('info_get_report_all'),sub{$self->{list}->_info_get_report_all()} );
-	EVT_BUTTON( $self, Wx::XmlResource::GetXRCID('info_get_validate'),sub{$self->{list}->_info_get_validate()} );
-
-	EVT_BUTTON( $self, Wx::XmlResource::GetXRCID('info_fetch'),sub{$self->{list}->_fetch_module()} );
-	EVT_BUTTON( $self, Wx::XmlResource::GetXRCID('info_extract'),sub{$self->{list}->_extract_module()} );
-	EVT_BUTTON( $self, Wx::XmlResource::GetXRCID('info_prepare'),sub{$self->{list}->_prepare_module()} );
-	EVT_BUTTON( $self, Wx::XmlResource::GetXRCID('info_create'),sub{$self->{list}->_create_module()} );
-	EVT_BUTTON( $self, Wx::XmlResource::GetXRCID('info_test'),sub{$self->{list}->_test_module()} );
-	EVT_BUTTON( $self, Wx::XmlResource::GetXRCID('info_install'),sub{$self->{list}->_install_module()} );
-	
-}
 sub _setup_menu{
 	$self=shift;
 	#attach menu events

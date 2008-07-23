@@ -84,7 +84,7 @@ sub new {
 	#create links to events
 #	EVT_WINDOW_CREATE( $self, $self, \&OnCreate );			#when the tree is created
 	EVT_TREE_SEL_CHANGED( $self, $self, \&OnSelChanged);	#when a user changes the selection
-	EVT_TREE_ITEM_ACTIVATED($self, $self, \&ShowPODReader);	#When the user double-clicks an item
+	EVT_TREE_ITEM_ACTIVATED($self, $self, \&OnDblClick);	#When the user double-clicks an item
 	EVT_TREE_ITEM_RIGHT_CLICK( $self, $self, \&ShowPopupMenu );#when the user wants a pop-up menu
 
 	return $self;
@@ -97,9 +97,10 @@ sub Init {
 	my ($event)=@_;
 
 	#get references so we can access them easier
-	$self->{parent}=Wx::Window::FindWindowByName('main_window');
-	$self->{cpan}=$self->{parent}->{cpan};
-	$self->{config}=$self->{cpan}->configure_object();
+#	$self->{parent}=Wx::Window::FindWindowByName('main_window');
+#	$self->{parent}=$self->GetParent();
+#	$self->{cpan}=$self->{parent}->{cpan};
+#	$self->{config}=$self->{cpan}->configure_object();
 	
 	#$self->AssignImageList($imgList);
 
@@ -110,12 +111,12 @@ sub Init {
 	#go ahead and get the list of categories
 	$self->{category_list}=$self->_get_categories();
 	
-	$self->{statusBar}=Wx::Window::FindWindowByName('main_window_status');
+	#$self->{statusBar}=Wx::Window::FindWindowByName('main_window_status');
 	
 	#populate tree with default values
 	#$self->Populate();
 	
-	$self->{podReader}=$self->{parent}->{podReader} || CPANPLUS::Shell::Wx::PODReader::Frame->new($self);
+	#$self->{podReader}=$self->{parent}->{podReader} || CPANPLUS::Shell::Wx::PODReader::Frame->new($self);
 
 	$self->SetWindowStyle($self->GetWindowStyleFlag()|wxVSCROLL|wxALWAYS_SHOW_SB);
 	_uShowErr;
@@ -133,6 +134,27 @@ sub SortByAuthor{shift->_switch_sort(AUTHOR)}
 sub SortByName{shift->_switch_sort(NAME)}
 sub SortByCategory{shift->_switch_sort(CATEGORY)}
 
+#the following methods are for setting the event handlers for the various 
+# menu items in the context menu. They all take one parameter:a code ref
+#The code ref is then executed with three parameters: 
+# the menu [Wx::Menu], the event [Wx::CommandEvent], and the name of the selected module 
+sub SetInfoHandler{$_[0]->{_minfoHandler}=$_[1];}
+sub SetInstallMenuHandler{$_[0]->{_minstallHandler}=$_[1];}
+sub SetUpdateMenuHandler{$_[0]->{_mupdateHandler}=$_[1];}
+sub SetUninstallMenuHandler{$_[0]->{_muninstallHandler}=$_[1];}
+sub SetFetchMenuHandler{$_[0]->{_mfetchHandler}=$_[1];}
+sub SetPrepareMenuHandler{$_[0]->{_mprepareHandler}=$_[1];}
+sub SetBuildMenuHandler{$_[0]->{_mbuildHandler}=$_[1];}
+sub SetTestMenuHandler{$_[0]->{_mtestHandler}=$_[1];}
+sub SetExtractMenuHandler{$_[0]->{_mextractHandler}=$_[1];}
+sub SetClickHandler{$_[0]->{_clickHandler}=$_[1];}
+sub SetDblClickHandler{$_[0]->{_dblClickHandler}=$_[1];print "DblClick:".$_[1];}
+sub SetStatusBar{$_[0]->{statusBar}=$_[1];}
+sub SetMenu{$_[0]->{menu}=$_[1];}
+sub GetName{return $_[0]->{thisName}}
+sub GetMod{return $_[0]->{thisMod}}
+sub SetCPP{$_[0]->{cpan}=$_[1];$_[0]->{config}=$_[1]->configure_object();}
+
 #this is called when the user right-clicks on an item in the tree
 sub ShowPopupMenu{
 	my $self = shift;
@@ -141,21 +163,21 @@ sub ShowPopupMenu{
 	#we can't do any actions on unknown modules
 	return if $self->GetItemImage($event->GetItem()) == 4;
 	#create the menu
-	$self->{menu}= CPANPLUS::Shell::Wx::ModuleTree::Menu->new($self,$event->GetItem());
+	$self->{menu}= $self->{menu}||CPANPLUS::Shell::Wx::ModuleTree::Menu->new($self,$event->GetItem());
 	#show the menu
 	$self->PopupMenu($self->{menu},$event->GetPoint());
 }
 
 
-#this method shows the PODReader tab and displays the documentation for the selected module
-sub ShowPODReader{
-	my $self     = shift;
-	my ($event)  = @_;
-	$self->{podReader}=CPANPLUS::Shell::Wx::PODReader::Frame->new($self) unless $self->{podReader};	
-	$self->{podReader}->Show(1) if ($self->{podReader} && $self->{podReader}->isa('Wx::Frame'));
-	$self->{podReader}->Search($self->{thisName});
-	Wx::Window::FindWindowByName('nb_main')->ChangeSelection(3);
-	
+#this is called when the user double-clicks on an item in the tree
+sub OnDblClick{
+	my $self = shift;
+	my ($event)=@_;
+	#we can't do any actions on unknown modules
+	my $img=$self->GetItemImage($event->GetItem());
+	print "Double Click!:".$self->{_dblClickHandler}." img = $img\n";
+	return if $img == 4;
+	&{$self->{_dblClickHandler}}(@_) if $self->{_dblClickHandler};
 }
 #this method calls the other methods to populate the tree
 sub Populate{
@@ -196,17 +218,15 @@ sub Populate{
 
 #update only info tab in the lower notebook and clear other items
 sub OnSelChanged{
-	my $self=shift;
+	my ($self,$event)=@_;
+
 	#set global variable for name of what the user selected
 	$self->{thisName}=$self->GetItemText($self->GetSelection());
 	#set global variable for CPANPLUS::Module object of what the user selected
 	$self->{thisMod}=$self->_get_mod($self->{thisName});
-	#reset all info in Info pane
-	$self->_info_reset();
 	#return if we can't get an object reference
 	return unless $self->{thisMod};
-	#display info
-	$self->_info_get_info();
+	&{$self->{_clickHandler}}($self,$event) if $self->{_clickHandler};
 }
 
 #this method check to see which prerequisites have not been met
@@ -224,7 +244,7 @@ sub CheckPrerequisites{
 	foreach $name (@$pre){
 		my $mod=$self->_get_mod($name);
 		next unless $mod;
-		if ($mod->installed_version && $mod->installed_version >= $pre->{$key}){
+		if ($mod->installed_version && $mod->installed_version >= $mod->version){
 			$self->{statusBar}->SetStatusText($mod->name." v".$mod->installed_version._T(" is sufficient."));
 		}else{
 			$self->{statusBar}->SetStatusText($mod->name." v".$mod->installed_version._T(" needs to be updated to ").$name);
@@ -233,28 +253,6 @@ sub CheckPrerequisites{
 		}
 	}
 	return @updates;
-}
-#Get module.yml from search.cpan.org and get prereqs from there.
-#store in $HOME/.cpanplus/authors/X/XX/.../module.yml
-sub _info_get_prereqs{	
-	my $self=shift;
-	my $mod=shift||$self->{thisMod};
-	my $version=shift||'';
-	#print "_info_get_prereqs($mod)\n";
-	return unless $mod;
-	#set up variables for retrieveing and setting data
-	$self->{thisPrereq}=[];
-	
-	#get correct control and clear all items
-	my $preTree=Wx::Window::FindWindowByName('info_prereqs');
-	$preTree->DeleteAllItems();
-	my $root=$preTree->AddRoot('prereqs');
-
-	#append all prerequisites to root item
-	$self->_append_prereq($self->_get_modname($mod,$version),$preTree,$root);
-
-	#show any CPANPLUS errors in Log tab
-	_uShowErr;
 }
 
 #this method fetches the META.yml file from
@@ -268,10 +266,10 @@ sub GetPrereqs{
 	my $self=shift;
 	my $modName=shift || $self->{thisName};
 	my $version=shift||'';
-	print "GetPrereqs($modName) \n ";
+#	print "GetPrereqs($modName) \n ";
 	my $mod=$self->_get_mod($modName,$version);
 #	print $modName.(($version)?"-$version":'')."\n";
-	print Dumper $mod;
+#	print Dumper $mod;
 	return unless $mod; #if we can't get a module from the name, return
 	
 	#set up the directory structure fro storing the yml file
@@ -298,7 +296,7 @@ sub GetPrereqs{
 	my $reqs=$ymldata->{'requires'}||{};
 	my @ret=();
 	foreach $modName (keys(%$reqs)){
-		$name=$self->_get_mod($modName,{version=>$reqs->{$modName}});
+		$name=$self->_get_modname($modName,$reqs->{$modName});
 #		print "$name-".$reqs->{$key}."\n";
 		push(@ret,"$name");
 	}
@@ -315,7 +313,7 @@ sub _append_prereq{
 	my $preTree=shift;
 	my $parentNode=shift || $preTree->GetRootItem();	
 	#set up variables for retrieveing and setting data
-	print "_append_prereq($modName)\n";
+#	print "_append_prereq($modName)\n";
 
 	my $pre=$self->GetPrereqs($modName);
 	#print Dumper $pre;
@@ -332,36 +330,43 @@ sub _append_prereq{
 # all modules and names. You can pass an optional 
 # boolean denoting whether you would like to return the name
 # so parse_module can understand it.
+sub _get_modname{
+	my ($self,$mod,$version)=@_;
+	$version=$version?"-".$version:''; #the version we want
+
+	if (ref($mod) && ($mod->isa('CPANPLUS::Module') or $mod->isa('CPANPLUS::Module::Fake'))){
+		if ($version){
+			my $name=$mod->name;
+			$name =~ s/::/-/g;									#parse out the colons in the name
+			$mod=$self->{cpan}->parse_module(module=>$name.$version );
+		}
+			return $mod->package_name;
+	}	
+	$mod =~ s/::/-/g;									#parse out the colons in the name
+	$mod=$self->{cpan}->parse_module(module=>$mod.$version); #get the module
+	return $mod->package_name;	#return the name if we want to
+}
+
 sub _get_mod{
-	my ($self,$mod,$options)=@_;
-	print 'usage: $tree->_get_mod($modObject|$name '.
-		'[,{[version=>$version,] [mod=>$modObject,] [getname=>0|1]}])'."\n"
-		unless ref($options) eq 'HASH';
-	
-	my $version=$options->{version}?"-".$options->{version}:''; #the version we want
-#	my $name=$options->{name};									#the name we want
-	$mod=$mod || $options->{mod};								#the moduleObject or name
-	$onlyName=$options->{getname} || 0;							#return just the name?
+	my ($self,$mod,$version)=@_;
+
+	$version=$version?"-".$version:''; #add dash so parse_module can understand
 	
 #	print "_get_mod($name,$version,$onlyName)\n";
 	#if a module ref is passed, return the ref or the package_name
 	if (ref($mod) && ($mod->isa('CPANPLUS::Module') or $mod->isa('CPANPLUS::Module::Fake'))){
+		#get new module for $version
 		if ($version){
 			my $modname=$mod->name;
 			$modname =~ s/::/-/g;									#parse out the colons in the name
 			$mod=$self->{cpan}->parse_module(module=>$modname.$version );
 			#return $newMod;
 		}
-		if ($onlyName){
-			return $mod->package_name;
-		}else{
-			return $mod;
-		}
+		return $mod;
 	}
 	$mod =~ s/::/-/g;									#parse out the colons in the name
 	$mod=$self->{cpan}->parse_module(module=>$mod.$version); #get the module
-	return $mod->package_name if ($mod && $onlyName);	#return the name if we want to
-	return $mod;										#otherwise, return the module object
+	return $mod;										#return the module object
 }
 ###############################
 ####### PRIVATE METHODS #######
@@ -384,285 +389,8 @@ sub _switch_sort{
 }
 
 
-sub _get_more_info{
-	my $self=shift;
-	my $mod=shift||$self->{thisMod};
-	return unless $mod;
-	
-	$self->{statusBar}->SetStatusText(_T("Getting Status for ").$mod->name."...");
-
-	$progress=Wx::ProgressDialog->new(_T("Getting Extended Info..."),
-				_T("Updating List of Files..."),
-				8,$self,wxPD_APP_MODAL|wxPD_CAN_ABORT|wxPD_ESTIMATED_TIME|wxPD_REMAINING_TIME 
-				);	
-	$self->_info_get_versions($mod) if $progress->Update(4,_T("Getting Version Information..."));
-	$self->_info_get_files($mod)  if $progress->Update(0);
-	$self->_info_get_readme($mod) if $progress->Update(1,_T("Getting README..."));
-	$self->_info_get_status($mod) if $progress->Update(2,_T("Getting Status for ").$self->{thisName}."...");
-	$self->_info_get_prereqs($mod) if $progress->Update(3,_T("Getting Prerequisites for ").$self->{thisName}."...");
-	$self->_info_get_contents($mod) if $progress->Update(5,_T("Getting Contents..."));
-	$self->_info_get_report_all($mod) if $progress->Update(6,_T("Getting Reports..."));
-	$self->_info_get_validate($mod) if $progress->Update(7,_T("Validating Module..."));
-
-	$self->{statusBar}->SetStatusText('');
-	$progress->Destroy();
-	_uShowErr;
-
-}
-#clears all info fields. Optionally takes a tab name to clear only that tab's fields.
-sub _info_reset{
-	my $self=shift;
-	my $context=shift;
-	
-	Wx::Window::FindWindowByName('info_tab_text')->SetValue($self->{thisName}._T(" may not exist!")) if (!$context || $context eq 'info');
-	Wx::Window::FindWindowByName('info_report')->DeleteAllItems() if (!$context || $context eq 'report');
-	Wx::Window::FindWindowByName('info_prereqs')->DeleteAllItems() if (!$context || $context eq 'prereqs');
-	Wx::Window::FindWindowByName('info_validate')->Clear() if (!$context || $context eq 'validate');
-	Wx::Window::FindWindowByName('info_files')->Clear() if (!$context || $context eq 'files');
-	Wx::Window::FindWindowByName('info_contents')->Clear() if (!$context || $context eq 'contents');
-	Wx::Window::FindWindowByName('info_readme')->Clear() if (!$context || $context eq 'readme');
-	Wx::Window::FindWindowByName('info_distributions')->Clear() if (!$context || $context eq 'readme');
-	if (!$context || $context eq 'status'){
-		Wx::Window::FindWindowByName('info_status_installed')->SetValue(0);
-		Wx::Window::FindWindowByName('info_status_uninstall')->SetValue(0);
-		Wx::Window::FindWindowByName('info_status_fetch')->SetValue('');
-		Wx::Window::FindWindowByName('info_status_signature')->SetValue(0);
-		Wx::Window::FindWindowByName('info_status_extract')->SetValue('');
-		Wx::Window::FindWindowByName('info_status_created')->SetValue(0);
-		Wx::Window::FindWindowByName('info_status_installer_type')->SetValue('');
-		Wx::Window::FindWindowByName('info_status_checksums')->SetValue('');
-		Wx::Window::FindWindowByName('info_status_checksum_value')->SetValue('');
-		Wx::Window::FindWindowByName('info_status_checksum_ok')->SetValue(0);
-	}
-}
-
-sub _info_get_files{
-	my $self=shift;
-	my $mod=shift||$self->{thisMod};
-	return unless $mod;
-
-	$self->{statusBar}->SetStatusText(_T("Getting File Info..."));
-	my $info_files=Wx::Window::FindWindowByName('info_files');
-	$info_files->Clear();
-	
-	my @files=$mod->files();
-	my $text=$mod->name._T(" has ").(@files || _T('NO'))._T(" installed files:\n");
-	foreach $file (@files){
-		$text.="$file\n";
-	}
-	$text.=_T("There was a problem retrieving the file information for this module.\n").
-		("Please see the log for more info.\n") unless @files;
-	$info_files->AppendText($text);
-	_uShowErr;
-}
 
 
-sub _info_get_info{	
-	my $self=shift;
-	my $mod=shift||$self->{thisMod};
-	#return unless $mod;
-
-	my $info_ctrl=Wx::Window::FindWindowByName('info_tab_text');
-	$info_ctrl->Clear();
-	$self->{statusBar}->SetStatusText(_T("Getting Info for ").$mod->name."...");
-
-	my $status_info_text='';
-	#update info panel
-	unless ($mod){
-		$info_ctrl->AppendText(_T("No Information Found!"));
-	}else{
-		my $info=$mod->details();
-	 	$status_info_text.=_T("\tAuthor\t\t\t\t").$info->{'Author'}."\n" if $info->{'Author'};
-	 	$status_info_text.=_T("\tDescription\t\t\t").$info->{'Description'}."\n" if $info->{'Description'};
-	 	$status_info_text.=_T("\tIs Perl Core?\t\t\t").($mod->package_is_perl_core()?_T('Yes'):_T('No'))."\n";
-	 	$status_info_text.=_T("\tDevelopment Stage\t").$info->{'Development Stage'}."\n" if $info->{'Development Stage'};
-	 	$status_info_text.=_T("\tInstalled File\t\t\t").$info->{'Installed File'}."\n" if $info->{'Installed File'};
-	 	$status_info_text.=_T("\tInterface Style\t\t").$info->{'Interface Style'}."\n" if $info->{'Interface Style'};
-	  	$status_info_text.=_T("\tLanguage Used\t\t").$info->{'Language Used'}."\n" if $info->{'Language Used'};
-	 	$status_info_text.=_T("\tPackage\t\t\t\t").$info->{'Package'}."\n" if $info->{'Package'};
-	 	$status_info_text.=_T("\tPublic License\t\t").$info->{'Public License'}."\n" if $info->{'Public License'};
-	 	$status_info_text.=_T("\tSupport Level\t\t").$info->{'Support Level'}."\n" if $info->{'Support Level'};
-	 	$status_info_text.=_T("\tVersion Installed\t\t").$info->{'Version Installed'}."\n" if $info->{'Version Installed'};
-	 	$status_info_text.=_T("\tVersion on CPAN\t\t").$info->{'Version on CPAN'}."\n" if $info->{'Version on CPAN'};
-		$status_info_text.=_T("\tComment\t\t\t").($mod->comment || 'N/A')."\n";
-		$status_info_text.=_T("\tPath On Mirror\t\t").($mod->path || 'N/A')."\n";
-		$status_info_text.=_T("\tdslip\t\t\t\t").($mod->dslip || 'N/A')."\n";
-		$status_info_text.=_T("\tIs Bundle?\t\t\t").($mod->is_bundle()?_T('Yes'):_T('No'))."\n";
-		#third-party information
-		$status_info_text.=_T("\tThird-Party?\t\t\t").($mod->is_third_party()?_T('Yes'):_T('No'))."\n";
-	    if ($mod->is_third_party()) {
-	        my $info = $self->{cpan}->module_information($mod->name);
-	        $status_info_text.=
-	              _T("\t\tIncluded In\t\t").$info->{name}."\n".
-	              _T("\t\tModule URI\t").$info->{url}."\n".
-	              _T("\t\tAuthor\t\t\t").$info->{author}."\n".
-	              _T("\t\tAuthor URI\t").$info->{author_url}."\n";
-	    }
-	    $info_ctrl->AppendText($status_info_text);
-		$info_ctrl->ShowPosition(0);
-	}	
-	$self->{statusBar}->SetStatusText('');
-	_uShowErr;
-
-	
-}
-sub _info_get_versions{	
-	my $self=shift;
-	my $mod=shift||$self->{thisMod};
-	return unless $mod;
-
-	$self->{statusBar}->SetStatusText(_T("Getting Version Info for ").$mod->name."...");
-	my $versionList=Wx::Window::FindWindowByName('info_distributions');
-	$versionList->Clear();
-
-	my @versions=();
-	foreach $m ($mod->distributions()){
-		my $v=($m->version || 0.0) if $m;
-		push(@versions,$v) unless (grep(/$v/,@versions));
-	}
-	@versions=sort(@versions);
-	my $numInList=@versions;
-	$versionList->Append($_) foreach (@versions);
-	$versionList->SetValue($versions[-1]);
-	#$versionList->SetFirstItem($numInList);
-	
-	_uShowErr;
-}
-
-#get installer status info
-#TODO Make this work! Store status info after build into file
-#Update the status tab
-sub _info_get_status{
-	my $self=shift;
-	my $mod=shift||$self->{thisMod};
-	return unless $mod;
-	Wx::LogMessage _T("Getting status for ").$mod->name."...";
-
-	#get status from module
-	my $status=$mod->status();
-
-	#if we haven't retrieved the file and the stored info exists
-	#then use the stored values
-	my $statFile=File::Spec->catfile($ENV{'HOME'},'.cpanplus','status.stored');
-	if (!defined($status->fetch) && -e $statFile && (my $Allstatus=retrieve($statFile)) ){
-		$thisStat=$Allstatus->{$mod->name};
-		$status=$thisStat if $Allstatus->{$mod->name};
-	}
-	#print Dumper $status;
-	Wx::Window::FindWindowByName('info_status_installed')->SetValue($status->installed || 0);
-	Wx::Window::FindWindowByName('info_status_uninstall')->SetValue($status->uninstall || 0);
-	Wx::Window::FindWindowByName('info_status_fetch')->SetValue($status->fetch||'n/a');
-	Wx::Window::FindWindowByName('info_status_signature')->SetValue($status->signature||0);
-	Wx::Window::FindWindowByName('info_status_extract')->SetValue($status->extract||'n/a');
-	Wx::Window::FindWindowByName('info_status_created')->SetValue($status->created||0);
-	Wx::Window::FindWindowByName('info_status_installer_type')->SetValue($status->installer_type||'n/a');
-	Wx::Window::FindWindowByName('info_status_checksums')->SetValue($status->checksums || 'n/a');
-	Wx::Window::FindWindowByName('info_status_checksum_value')->SetValue($status->checksum_value||'n/a');
-	Wx::Window::FindWindowByName('info_status_checksum_ok')->SetValue($status->checksum_ok || 0);
-	_uShowErr;
-	
-}
-
-#get the readme file
-sub _info_get_readme{
-	my $self=shift;
-	my $mod=shift||$self->{thisMod};
-	return unless $mod;
-	my $info_readme=Wx::Window::FindWindowByName('info_readme');
-	$info_readme->Clear();
-	$info_readme->AppendText($mod->readme);
-	$info_readme->ShowPosition(0);
-	_uShowErr;
-}
-
-sub _info_get_contents{
-	my $self=shift;
-	my $mod=shift||$self->{thisMod};
-	return unless $mod;
-	my $info_contents=Wx::Window::FindWindowByName('info_contents');
-	$info_contents->Clear();
-	my $txt='';
-	foreach $m (sort {lc($a->name) cmp lc($b->name)} $mod->contains() ){
-		$txt.=$m->name."\n";
-	}
-	$info_contents->AppendText($txt);
-	$info_contents->ShowPosition(0); #set visible position to beginning
-	_uShowErr;
-}
-sub _info_get_validate{
-	my $self=shift;
-	my $mod=shift||$self->{thisMod};
-	return unless $mod;
-	my $display=Wx::Window::FindWindowByName('info_validate');
-	$display->Clear();
-	my $txt='';
-	foreach $file (sort($mod->validate) ){
-		$txt.=$file."\n";
-	}
-	$display->AppendText( ($txt || _T("No Missing Files or No Information. See Log.")) );
-	$display->ShowPosition(0); #set visible position to beginning
-	_uShowErr;
-}
-
-
-sub _info_get_report_all{
-	my $self=shift;
-	my $mod=shift||$self->{thisMod};
-	return unless $mod;
-	my $info_report=Wx::Window::FindWindowByName('info_report');
-	$info_report->DeleteAllItems();
-	
-	#set up the listctrl
-	unless ($info_report->GetColumnCount == 3){
-		while ($info_report->GetColumnCount){
-			$info_report->DeleteColumn(0);
-		}
-		$info_report->InsertColumn( 0, _T('Distribution'));
-		$info_report->InsertColumn( 1, _T('Platform') );
-		$info_report->InsertColumn( 2, _T('Grade') );		
-	}
-	my @versions=$mod->fetch_report(all_versions => 1, verbose => 1);
-	@versions=reverse(sort { lc($a->{platform}) cmp lc($b->{platform})} @versions);
-#	print Dumper $versions[0];
-	foreach $item (@versions ){
-		$info_report->InsertStringItem( 0, $item->{'dist'} );
-		$info_report->SetItem( 0, 1, $item->{'platform'} );
-		$info_report->SetItem( 0, 2, $item->{'grade'} );
-	}
-	$info_report->SetColumnWidth(0,wxLIST_AUTOSIZE);
-	$info_report->SetColumnWidth(1,wxLIST_AUTOSIZE);
-	$info_report->SetColumnWidth(2,wxLIST_AUTOSIZE);
-	_uShowErr;
-}
-sub _info_get_report_this{
-	my $self=shift;
-	my $mod=shift||$self->{thisMod};
-	return unless $mod;
-	my $info_report=Wx::Window::FindWindowByName('info_report');
-	$info_report->DeleteAllItems();
-	
-	#set up the listctrl
-	unless ($info_report->GetColumnCount == 3){
-		while ($info_report->GetColumnCount){
-			$info_report->DeleteColumn(0);
-		}
-		$info_report->InsertColumn( 0, _T('Distribution') );
-		$info_report->InsertColumn( 1, _T('Platform') );
-		$info_report->InsertColumn( 2, _T('Grade') );		
-	}
-	
-	my @versions=$mod->fetch_report(all_versions => 0, verbose => 1);
-	@versions=reverse(sort { lc($a->{platform}) cmp lc($b->{platform})} @versions);
-	foreach $item (@versions ){
-		$info_report->InsertStringItem( 0, $item->{'dist'} );
-		$info_report->SetItem( 0, 1, $item->{'platform'} );
-		$info_report->SetItem( 0, 2, $item->{'grade'} );
-	}
-	$info_report->SetColumnWidth(0,wxLIST_AUTOSIZE);
-	$info_report->SetColumnWidth(1,wxLIST_AUTOSIZE);
-	$info_report->SetColumnWidth(2,wxLIST_AUTOSIZE);
-	_uShowErr;
-}
 
 ###############################
 ######## Module Actions #######
@@ -1652,10 +1380,10 @@ sub _get_status_icon{
 	my $self=shift;
 	my ($name)=@_;
 	my $mod=$self->{cpan}->parse_module(module=>$name);
-	return $self->{iconList}->{unknown}->{idx} unless $mod;
-	return $self->{iconList}->{installed}->{idx} if $mod->is_uptodate();
-	return $self->{iconList}->{not_installed}->{idx} if !$mod->installed_version();
-	return $self->{iconList}->{update}->{idx};
+	return $self->{iconList}->unknown->idx unless $mod;
+	return $self->{iconList}->installed->idx if $mod->is_uptodate();
+	return $self->{iconList}->not_installed->idx if !$mod->installed_version();
+	return $self->{iconList}->update->idx;
 	
 	_uShowErr;
 	
@@ -1663,7 +1391,7 @@ sub _get_status_icon{
 sub SetImageList{								#must be a Wx::ImageList
 	my ($self,$list)=@_;
 	$self->{iconList}=$list;
-	$self->AssignImageList($list->{imageList});
+	$self->AssignImageList($list->imageList);
 }
 
 ########################################
@@ -1671,99 +1399,6 @@ sub SetImageList{								#must be a Wx::ImageList
 ########################################
 
 
-#the following methods are for setting the event handlers for the various 
-# menu items in the context menu. They all take one parameter:a code ref
-#The code ref is then executed with three parameters: 
-# the menu [Wx::Menu], the event [Wx::CommandEvent], and the name of the selected module 
-sub SetInfoHandler{$_[0]->{_minfoHandler}=$_[1];}
-sub SetInstallMenuHandler{$_[0]->{_minstallHandler}=$_[1];}
-sub SetUpdateMenuHandler{$_[0]->{_mupdateHandler}=$_[1];}
-sub SetUninstallMenuHandler{$_[0]->{_muninstallHandler}=$_[1];}
-sub SetFetchMenuHandler{$_[0]->{_mfetchHandler}=$_[1];}
-sub SetPrepareMenuHandler{$_[0]->{_mprepareHandler}=$_[1];}
-sub SetBuildMenuHandler{$_[0]->{_mbuildHandler}=$_[1];}
-sub SetTestMenuHandler{$_[0]->{_mtestHandler}=$_[1];}
-sub SetExtractMenuHandler{$_[0]->{_mextractHandler}=$_[1];}
-sub SetSelectHandler{$_[0]->{_selectHandler}=$_[1];}
-sub SetDblClickHandler{$_[0]->{_dblClickHandler}=$_[1];}
-
-sub GetInfo{
-	my ($menu,$cmd_event,$modName)=@_;
-	my $modtree=Wx::Window::FindWindowByName('tree_modules');
-	
-	$modtree->_get_more_info($modtree->{cpan}->module_tree($modName));
-}
-sub BatchInstall{
-	my ($self,$menu,$cmd_event,$modName)=@_;
-	my $actionslist=Wx::Window::FindWindowByName('main_actions_list');
-	my $modtree=Wx::Window::FindWindowByName('tree_modules');
-	print "Adding $modName to batch.\n";
-	$actionslist->InsertStringItem( 0, $modName );
-	$actionslist->SetItem( 0, 1, "Install" );
-	my @prereqs=$modtree->CheckPrerequisites($modName);
-	foreach $preName (@prereqs){
-		my $mod=$modtree->{cpan}->module_tree($preName);
-		my $type=_T("Install");
-		$type=_T("Update") if ($mod->installed_version);
-		$actionslist->InsertStringItem( 0, $preName );
-		$actionslist->SetItem( 0, 1, $type );
-	}	
-}
-sub BatchUpdate{
-	my ($menu,$cmd_event,$modName)=@_;
-	my $actionslist=Wx::Window::FindWindowByName('main_actions_list');
-	my $modtree=Wx::Window::FindWindowByName('tree_modules');
-	$actionslist->InsertStringItem( 0, $modName );
-	$actionslist->SetItem( 0, 1, "Update" );
-	my @prereqs=$modtree->CheckPrerequisites($modName);
-	foreach $preName (@prereqs){
-		my $mod=$modtree->{cpan}->module_tree($preName);
-		my $type=_T("Install");
-		$type=_T("Update") if ($mod->installed_version);
-		$actionslist->InsertStringItem( 0, $preName );
-		$actionslist->SetItem( 0, 1, $type );
-	}	
-}
-sub BatchUninstall{
-	my ($menu,$cmd_event,$modName)=@_;
-	my $actionslist=Wx::Window::FindWindowByName('main_actions_list');
-	$actionslist->InsertStringItem( 0, $modName );
-	$actionslist->SetItem( 0, 1, _T("Uninstall") );
-
-}
-sub BatchFetch{
-	my ($menu,$cmd_event,$modName)=@_;
-	my $actionslist=Wx::Window::FindWindowByName('main_actions_list');
-	$actionslist->InsertStringItem( 0, $modName );
-	$actionslist->SetItem( 0, 1, _T("Fetch") );
-
-}
-sub BatchExtract{
-	my ($menu,$cmd_event,$modName)=@_;
-	my $actionslist=Wx::Window::FindWindowByName('main_actions_list');
-	$actionslist->InsertStringItem( 0, $modName );
-	$actionslist->SetItem( 0, 1, _T("Extract") );
-
-}
-sub BatchPrepare{
-	my ($menu,$cmd_event,$modName)=@_;
-	my $actionslist=Wx::Window::FindWindowByName('main_actions_list');
-	$actionslist->InsertStringItem( 0, $modName );
-	$actionslist->SetItem( 0, 1, _T("Prepare") );
-
-}
-sub BatchBuild{
-	my ($menu,$cmd_event,$modName)=@_;
-	my $actionslist=Wx::Window::FindWindowByName('main_actions_list');
-	$actionslist->InsertStringItem( 0, $modName );
-	$actionslist->SetItem( 0, 1, _T("Build") );
-}
-sub BatchTest{
-	my ($menu,$cmd_event,$modName)=@_;
-	my $actionslist=Wx::Window::FindWindowByName('main_actions_list');
-	$actionslist->InsertStringItem( 0, $modName );
-	$actionslist->SetItem( 0, 1, _T("Test") );
-}
 
 package CPANPLUS::Shell::Wx::ModuleTree::Menu;
 use base 'Wx::Menu';

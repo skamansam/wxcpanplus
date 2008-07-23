@@ -7,6 +7,7 @@ use Cwd;
 use Data::Dumper;
 use CPANPLUS::Error;
 use File::Spec;
+use Class::Struct qw(struct);
 
 #enable gettext support
 use Wx::Locale gettext => '_T';
@@ -14,6 +15,8 @@ use Wx::Locale gettext => '_T';
 use base qw(Exporter);
 our @EXPORT = qw(_uPopulateTree _uGetTimed _uGetInstallPath 
 		_uShowErr _u_t_ShowErr);
+
+
 
 #TODO this method populates a tree with the correct status icon
 sub _uPopulateModulesWithIcons{
@@ -102,3 +105,24 @@ sub _uGetTimed($){
 	mu $end=time();
 	return sprintf("%2d",(($end-$begin)/60)).":".sprintf("%2d",(($end-$begin) % 60));
 }
+
+
+#the following two structs are used to hold the image data
+#for the image lists for the various treectrl's.
+#	idx is the value from imglist->Add($img)
+#	icon is the actual icon data 
+struct ('CPANPLUS::Shell::Wx::util::imagedata' => {
+	idx		=>	'$',
+	icon	=>	'$'
+});
+struct 'CPANPLUS::Shell::Wx::util::images' => {
+	installed		=> 'CPANPLUS::Shell::Wx::util::imagedata',
+	update			=> 'CPANPLUS::Shell::Wx::util::imagedata',
+	remove			=> 'CPANPLUS::Shell::Wx::util::imagedata',
+	not_installed	=> 'CPANPLUS::Shell::Wx::util::imagedata',
+	unknown			=> 'CPANPLUS::Shell::Wx::util::imagedata',
+	imageList		=> 'Wx::ImageList'
+};
+
+
+1;
