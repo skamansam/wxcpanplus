@@ -139,7 +139,7 @@ sub SortByCategory{shift->_switch_sort(CATEGORY)}
 #The code ref is then executed with three parameters: 
 # the menu [Wx::Menu], the event [Wx::CommandEvent], and the name of the selected module 
 sub SetInfoHandler{$_[0]->{_minfoHandler}=$_[1];}
-sub SetInstallMenuHandler{$_[0]->{_minstallHandler}=$_[1];}
+sub SetInstallMenuHandler{print "Install: ",@_;$_[0]->{_minstallHandler}=$_[1];}
 sub SetUpdateMenuHandler{$_[0]->{_mupdateHandler}=$_[1];}
 sub SetUninstallMenuHandler{$_[0]->{_muninstallHandler}=$_[1];}
 sub SetFetchMenuHandler{$_[0]->{_mfetchHandler}=$_[1];}
@@ -148,7 +148,7 @@ sub SetBuildMenuHandler{$_[0]->{_mbuildHandler}=$_[1];}
 sub SetTestMenuHandler{$_[0]->{_mtestHandler}=$_[1];}
 sub SetExtractMenuHandler{$_[0]->{_mextractHandler}=$_[1];}
 sub SetClickHandler{$_[0]->{_clickHandler}=$_[1];}
-sub SetDblClickHandler{$_[0]->{_dblClickHandler}=$_[1];print "DblClick:".$_[1];}
+sub SetDblClickHandler{print "DblClick:",@_,"\n";$_[0]->{_dblClickHandler}=$_[1];}
 sub SetStatusBar{$_[0]->{statusBar}=$_[1];}
 sub SetMenu{$_[0]->{menu}=$_[1];}
 sub GetName{return $_[0]->{thisName}}
@@ -163,9 +163,9 @@ sub ShowPopupMenu{
 	#we can't do any actions on unknown modules
 	return if $self->GetItemImage($event->GetItem()) == 4;
 	#create the menu
-	$self->{menu}= $self->{menu}||CPANPLUS::Shell::Wx::ModuleTree::Menu->new($self,$event->GetItem());
+	$menu = CPANPLUS::Shell::Wx::ModuleTree::Menu->new($self,$event->GetItem());
 	#show the menu
-	$self->PopupMenu($self->{menu},$event->GetPoint());
+	$self->PopupMenu($menu,$event->GetPoint());
 }
 
 
@@ -239,7 +239,7 @@ sub CheckPrerequisites{
 	my $version=shift||'';
 	my $pre=$self->GetPrereqs($modName,$version);
 #	print Dumper $pre; 
-	return;
+#	return;
 	my @updates=();
 	foreach $name (@$pre){
 		my $mod=$self->_get_mod($name);
@@ -252,6 +252,7 @@ sub CheckPrerequisites{
 			push (@updates,$self->CheckPrerequisites($name));
 		}
 	}
+	$self->{statusBar}->SetStatusText('');
 	return @updates;
 }
 
@@ -1432,13 +1433,13 @@ sub new {
 
 	EVT_MENU( $self, $info, sub{&{$parent->{_minfoHandler}}(@_,$modName)} ) if $parent->{_minfoHandler};
 	EVT_MENU( $actions, $install, sub{&{$parent->{_minstallHandler}}(@_,$modName)} ) if ($img == 3 && $parent->{_minstallHandler});
-	EVT_MENU( $actions, $update, sub{&{$parent->{_mupdateHandler}}(@_,$modName)} ) if ($img == 1 && $parent->{_minstallHandler});
-	EVT_MENU( $actions, $uninstall, sub{&{$parent->{_muninstallHandler}}(@_,$modName)} )if (($img==0 or $img==1) && $parent->{_minstallHandler});
-	EVT_MENU( $actions, $fetch, sub{&{$parent->{_mfetchHandler}}(@_,$modName)} )  if $parent->{_minstallHandler};
-	EVT_MENU( $actions, $prepare, sub{&{$parent->{_mprepareHandler}}(@_,$modName)} ) if $parent->{_minstallHandler};
-	EVT_MENU( $actions, $build, sub{&{$parent->{_mbuildHandler}}(@_,$modName)} ) if $parent->{_minstallHandler};
-	EVT_MENU( $actions, $test,sub{&{$parent->{_mtestHandler}}(@_,$modName)} ) if $parent->{_minstallHandler};
-	EVT_MENU( $actions, $extract, sub{&{$parent->{_mextractHandler}}(@_,$modName)} ) if $parent->{_minstallHandler};
+	EVT_MENU( $actions, $update, sub{&{$parent->{_mupdateHandler}}(@_,$modName)} ) if ($img == 1 && $parent->{_mupdateHandler});
+	EVT_MENU( $actions, $uninstall, sub{&{$parent->{_muninstallHandler}}(@_,$modName)} )if (($img==0 or $img==1) && $parent->{_muninstallHandler});
+	EVT_MENU( $actions, $fetch, sub{&{$parent->{_mfetchHandler}}(@_,$modName)} )  if $parent->{_mfetchHandler};
+	EVT_MENU( $actions, $prepare, sub{&{$parent->{_mprepareHandler}}(@_,$modName)} ) if $parent->{_mprepareHandler};
+	EVT_MENU( $actions, $build, sub{&{$parent->{_mbuildHandler}}(@_,$modName)} ) if $parent->{_mbuildHandler};
+	EVT_MENU( $actions, $test,sub{&{$parent->{_mtestHandler}}(@_,$modName)} ) if $parent->{_mtestHandler};
+	EVT_MENU( $actions, $extract, sub{&{$parent->{_mextractHandler}}(@_,$modName)} ) if $parent->{_mextractHandler};
 #	print "Ending ";	
 	return $self;
 }

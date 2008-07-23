@@ -138,21 +138,15 @@ sub AUTOLOAD{
 	my @ops=@_;
 	my $type = ref($self) or return undef;
 	my $func=$AUTOLOAD;
-	print "$func (".ref($func).") not found in ModulePanel. Trying ModuleTree...\n";
+	#print "$func (".ref($func).") not found in ModulePanel. Trying ModuleTree...\n";
 	$func =~ s/.*:://;
-	if (ref($func) eq 'CODE' && $self->{mod_tree}->can($func)){
-		@ops=map( ((defined($_))?$_:'undef'),@ops);
-		my $param=join(',',@ops);
-		my $ret='';
-		my $estr="\$ret=\$self->{mod_tree}->$func($param);";
-		print "$estr\n";
-		eval($estr);
-		print $@ if $@;
-		return $ret;
+	if ($self->{mod_tree}->can($func)){
+		@ops=map( ((defined($_))?$_:'undef'),@ops); #make sure undefs are kept undef
+		return $self->{mod_tree}->$func(@ops);
 	}elsif ($self->{mod_tree}->{$func}){
 		return $self->{mod_tree}->{$func};
 	}else{
-		Wx::LogError("Sorry! $func does not exist!");
+		Wx::LogError("$func does not exist!");
 	}
 	
 }
@@ -188,9 +182,9 @@ sub SetCPP{										#must be a CPANPLUS::Backend
 sub GetCPP{return $_[0]->{cpan};}
 sub SetConfig{$_[0]->{config}=$_[1];}			#must be a CPANPLUS::Backend::Configure
 sub GetConfig{return $_[0]->{config};}
-sub _get_mod{shift->{mod_tree}->_get_mod(@_)}
-sub _get_modname{shift->{mod_tree}->_get_modname(@_)}
-sub SetDblClickHandler{$_[0]->{mod_tree}->SetDblClickHandler($_[1]);print "MPDCL:".$_[1];}
+#sub _get_mod{shift->{mod_tree}->_get_mod(@_)}
+#sub _get_modname{shift->{mod_tree}->_get_modname(@_)}
+#sub SetDblClickHandler{$_[0]->{mod_tree}->SetDblClickHandler($_[1]);}
 
 ##################################
 ##### Moved from ModuleTree #####
@@ -502,78 +496,7 @@ sub GetInfo{
 	my ($menu,$cmd_event,$modName)=@_;
 	my $modtree=$self->{mod_tree};
 	
-	$modtree->_get_more_info($modtree->{cpan}->module_tree($modName));
-}
-sub BatchInstall{
-	my ($self,$menu,$cmd_event,$modName)=@_;
-	my $actionslist=Wx::Window::FindWindowByName('main_actions_list');
-	my $modtree=Wx::Window::FindWindowByName('tree_modules');
-	print "Adding $modName to batch.\n";
-	$actionslist->InsertStringItem( 0, $modName );
-	$actionslist->SetItem( 0, 1, "Install" );
-	my @prereqs=$modtree->CheckPrerequisites($modName);
-	foreach $preName (@prereqs){
-		my $mod=$modtree->{cpan}->module_tree($preName);
-		my $type=_T("Install");
-		$type=_T("Update") if ($mod->installed_version);
-		$actionslist->InsertStringItem( 0, $preName );
-		$actionslist->SetItem( 0, 1, $type );
-	}	
-}
-sub BatchUpdate{
-	my ($menu,$cmd_event,$modName)=@_;
-	my $actionslist=Wx::Window::FindWindowByName('main_actions_list');
-	my $modtree=Wx::Window::FindWindowByName('tree_modules');
-	$actionslist->InsertStringItem( 0, $modName );
-	$actionslist->SetItem( 0, 1, "Update" );
-	my @prereqs=$modtree->CheckPrerequisites($modName);
-	foreach $preName (@prereqs){
-		my $mod=$modtree->{cpan}->module_tree($preName);
-		my $type=_T("Install");
-		$type=_T("Update") if ($mod->installed_version);
-		$actionslist->InsertStringItem( 0, $preName );
-		$actionslist->SetItem( 0, 1, $type );
-	}	
-}
-sub BatchUninstall{
-	my ($menu,$cmd_event,$modName)=@_;
-	my $actionslist=Wx::Window::FindWindowByName('main_actions_list');
-	$actionslist->InsertStringItem( 0, $modName );
-	$actionslist->SetItem( 0, 1, _T("Uninstall") );
-
-}
-sub BatchFetch{
-	my ($menu,$cmd_event,$modName)=@_;
-	my $actionslist=Wx::Window::FindWindowByName('main_actions_list');
-	$actionslist->InsertStringItem( 0, $modName );
-	$actionslist->SetItem( 0, 1, _T("Fetch") );
-
-}
-sub BatchExtract{
-	my ($menu,$cmd_event,$modName)=@_;
-	my $actionslist=Wx::Window::FindWindowByName('main_actions_list');
-	$actionslist->InsertStringItem( 0, $modName );
-	$actionslist->SetItem( 0, 1, _T("Extract") );
-
-}
-sub BatchPrepare{
-	my ($menu,$cmd_event,$modName)=@_;
-	my $actionslist=Wx::Window::FindWindowByName('main_actions_list');
-	$actionslist->InsertStringItem( 0, $modName );
-	$actionslist->SetItem( 0, 1, _T("Prepare") );
-
-}
-sub BatchBuild{
-	my ($menu,$cmd_event,$modName)=@_;
-	my $actionslist=Wx::Window::FindWindowByName('main_actions_list');
-	$actionslist->InsertStringItem( 0, $modName );
-	$actionslist->SetItem( 0, 1, _T("Build") );
-}
-sub BatchTest{
-	my ($menu,$cmd_event,$modName)=@_;
-	my $actionslist=Wx::Window::FindWindowByName('main_actions_list');
-	$actionslist->InsertStringItem( 0, $modName );
-	$actionslist->SetItem( 0, 1, _T("Test") );
+	$modtree->_get_more_info($modtree->_get_mod($modName));
 }
 
 1;

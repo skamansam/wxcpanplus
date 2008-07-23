@@ -141,7 +141,13 @@ sub _setup_modules{
 	print "Initializing ModulePanel...\n";
 	$panel->Init();
 	$panel->SetDblClickHandler(sub{$self->ShowPODReader(@_)});
-	#$panel->BatchInstall(undef,undef,'Alter');
+	$panel->SetInstallMenuHandler(sub{$self->SetAction(@_,_T('Install'))});
+	$panel->SetUpdateMenuHandler(sub{$self->SetAction(@_,_T('Update'))});
+	$panel->SetUninstallMenuHandler(sub{$self->SetAction(@_,_T('Uninstall'))});
+	$panel->SetFetchMenuHandler(sub{$self->SetAction(@_,_T('Fetch'))});
+	$panel->SetPrepareMenuHandler(sub{$self->SetAction(@_,_T('Prepare'))});
+	$panel->SetBuildMenuHandler(sub{$self->SetAction(@_,_T('Build'))});
+	$panel->SetTestMenuHandler(sub{$self->SetAction(@_,_T('Test'))});
 }
 
 #this method shows the PODReader tab and displays the documentation for the selected module
@@ -154,6 +160,26 @@ sub ShowPODReader{
 	$self->{podReader}->Search($self->{panel}->{thisName});
 	Wx::Window::FindWindowByName('nb_main')->ChangeSelection(3);
 	
+}
+sub SetAction{
+	my ($self,$menu,$cmd_event,$modName,$cmd)=@_;
+
+	my $actionslist=Wx::Window::FindWindowByName('main_actions_list');
+	my $modtree=Wx::Window::FindWindowByName('tree_modules');
+	$actionslist->InsertStringItem( 0, $modName );
+	$actionslist->SetItem( 0, 1, $cmd );
+	
+	if ($cmd eq _T('Install') || $cmd eq _T('Update')){
+		print "$cmd with prereqs\n";
+		my @prereqs=$modtree->CheckPrerequisites($modName);
+		foreach $preName (@prereqs){
+			my $mod=$modtree->_get_mod($preName);
+			my $type=_T("Install");
+			$type=_T("Update") if ($mod->installed_version);
+			$actionslist->InsertStringItem( 0, $preName );
+			$actionslist->SetItem( 0, 1, $type );
+		}	
+	}	
 }
 
 sub CheckUpdate{
@@ -292,13 +318,13 @@ sub ShowPrefs{
 	$self->{prefsWin}->Show(1);
 }
 #show podreader dialog
-sub ShowPODReader{
-	my $self     = shift;
-	my ($event)  = @_;
-	$self->{podReader}=CPANPLUS::Shell::Wx::PODReader::Frame->new($self) unless $self->{podReader};	
-	$self->{podReader}->Show(1) if ($self->{podReader});
-	Wx::Window::FindWindowByName('nb_main')->ChangeSelection(3);
-}
+#sub ShowPODReader{
+#	my $self     = shift;
+#	my ($event)  = @_;
+#	$self->{podReader}=CPANPLUS::Shell::Wx::PODReader::Frame->new($self) unless $self->{podReader};	
+#	$self->{podReader}->Show(1) if ($self->{podReader});
+#	Wx::Window::FindWindowByName('nb_main')->ChangeSelection(3);
+#}
 
 sub _setup_actionslist{
 	$self=shift;	
