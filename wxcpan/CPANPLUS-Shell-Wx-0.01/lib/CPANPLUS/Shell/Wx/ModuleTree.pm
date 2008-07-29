@@ -345,7 +345,8 @@ sub _get_modname{
 	}	
 	$mod =~ s/::/-/g;									#parse out the colons in the name
 	$mod=$self->{cpan}->parse_module(module=>$mod.$version); #get the module
-	return $mod->package_name;	#return the name if we want to
+	return $mod->package_name if $mod;	#return the name if we want to
+	return '';
 }
 
 sub _get_mod{
@@ -1380,7 +1381,7 @@ sub PopulateWithModuleList{
 sub _get_status_icon{
 	my $self=shift;
 	my ($name)=@_;
-	my $mod=$self->{cpan}->parse_module(module=>$name);
+	my $mod=$self->_get_mod($name);
 	return $self->{iconList}->unknown->idx unless $mod;
 	return $self->{iconList}->installed->idx if $mod->is_uptodate();
 	return $self->{iconList}->not_installed->idx if !$mod->installed_version();

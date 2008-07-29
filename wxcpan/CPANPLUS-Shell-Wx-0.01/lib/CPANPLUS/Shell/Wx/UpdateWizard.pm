@@ -13,16 +13,35 @@ use Data::Dumper;
 
 use Wx::Locale gettext => '_T';
 
+use constant {
+	INTRO_PAGE=>0,
+	UPDATE_TYPE_PAGE=>1,
+	REVIEW_UPDATE_PAGE=>2,
+	PROGRESS_PAGE=>3,
+	REPORT_PAGE=>4
+};
+
 sub new{
 	my $class = shift;
 	my ($parent) = @_;
     my $self = $class->SUPER::new($parent,-1,"Update CPANPLUS");
 	$self->{parent} = $parent;
-
+	EVT_WIZARD_PAGE_CHANGED($self,$self,\&OnPageChanged);
 	#get all the pages
 	$self->{page1}=CPANPLUS::Shell::Wx::UpdateWizard::IntroPage->new($self);
 
 	return $self;
+}
+
+sub OnPageChanged{
+	my ($self,$event)=@_;
+	#print "OnPageChanged ",@_,"\n";
+	my $curPage=$event->GetPage;
+	my $type=$curPage->{type};
+	#print "TYPE IS $type";
+#	if ($type eq 'PROGRESS_PAGE'){
+#		$curPage->doUpdate();
+#	}
 }
 
 #runs the wizard. 
@@ -92,7 +111,13 @@ use base qw(Wx::WizardPage);
 use Wx;
 use Wx::Event qw(EVT_WIZARD_PAGE_CHANGED EVT_WINDOW_CREATE);
 use Data::Dumper;
-
+use constant {
+	INTRO_PAGE=>0,
+	UPDATE_TYPE_PAGE=>1,
+	REVIEW_UPDATE_PAGE=>2,
+	PROGRESS_PAGE=>3,
+	REPORT_PAGE=>4
+};
 use Wx::Locale gettext => '_T';
 
 sub new{
@@ -126,6 +151,7 @@ sub new{
 	my $class = shift;
 	my ($parent) = @_;
     my $self = $class->SUPER::new($parent);
+	$self->{type}=INTRO_PAGE;
 
 	$txt = Wx::TextCtrl->new($self, -1, 
 		_T("Welcome to the CPANPLUS update wizard. \n".
@@ -164,7 +190,9 @@ sub new{
 	my $class = shift;
 	my ($parent) = @_;
     my $self = $class->SUPER::new($parent);
-	
+
+	$self->{type}=UPDATE_TYPE_PAGE;
+
 	$self->{parent}=$parent;
 	
 	$txt = Wx::TextCtrl->new($self, -1, _T("First, we need to know which modules you would like to update:"), wxDefaultPosition, wxDefaultSize, wxTE_MULTILINE|wxTE_READONLY|wxTE_CENTRE|wxTE_WORDWRAP);
@@ -269,9 +297,12 @@ use base qw(CPANPLUS::Shell::Wx::UpdateWizard::Page);
 use Wx qw/:allclasses wxHORIZONTAL wxLB_MULTIPLE
 	wxVERTICAL wxADJUST_MINSIZE wxDefaultPosition wxDefaultSize wxTE_MULTILINE 
 	wxTE_READONLY wxTE_CENTRE wxTE_WORDWRAP wxALIGN_CENTER_VERTICAL wxEXPAND
-	wxALIGN_CENTER_HORIZONTAL wxSUNKEN_BORDER /;
-use Wx::Event qw(EVT_WIZARD_PAGE_CHANGED EVT_WINDOW_CREATE);
+	wxALIGN_CENTER_HORIZONTAL wxSUNKEN_BORDER wxPD_APP_MODAL wxPD_CAN_ABORT
+	wxPD_ELAPSED_TIME wxPD_ESTIMATED_TIME wxPD_REMAINING_TIME/;
+use Wx::Event qw(EVT_BUTTON EVT_WIZARD_PAGE_CHANGED EVT_WINDOW_CREATE 
+	EVT_LISTBOX EVT_LIST_ITEM_SELECTED);
 use Data::Dumper;
+use CPANPLUS::Shell::Wx::util;
 
 use Wx::Locale gettext => '_T';
 
@@ -280,9 +311,13 @@ sub new{
 	my ($parent) = @_;
     my $self = $class->SUPER::new($parent);
 
-	$txt = Wx::TextCtrl->new($self, -1, _T("Next, review all the modules that need to be upgraded or installed:"), wxDefaultPosition, wxDefaultSize, wxTE_MULTILINE|wxTE_READONLY|wxTE_CENTRE|wxTE_WORDWRAP);
+	$self->{type}=REVIEW_UPDATE_PAGE;
+
+	$txt = Wx::TextCtrl->new($self, -1, _T("Next, review all the modules that need to be upgraded or installed. Press the Update button when ready."), wxDefaultPosition, wxDefaultSize, wxTE_MULTILINE|wxTE_READONLY|wxTE_CENTRE|wxTE_WORDWRAP);
 	#$parent->{update_list} = Wx::CheckListBox->new($self, -1, wxDefaultPosition, wxDefaultSize, [],wxSUNKEN_BORDER);
-	$parent->{update_list} = Wx::ListBox->new($self, -1, wxDefaultPosition, wxDefaultSize, [],wxSUNKEN_BORDER|wxLB_MULTIPLE);
+	#$parent->{update_list} = Wx::ListBox->new($self, -1, wxDefaultPosition, wxDefaultSize, [],wxSUNKEN_BORDER|wxLB_MULTIPLE);
+	$parent->{update_list} = CPANPLUS::Shell::Wx::Frame::ActionsList->new($self, -1, wxDefaultPosition, wxDefaultSize, [],wxSUNKEN_BORDER|wxLB_MULTIPLE);
+	$parent->{do_update} = Wx::Button->new($self,-1,_T("Update!"));
 	
 
 	$txt->Enable(0);
@@ -290,23 +325,26 @@ sub new{
 	$sizer = Wx::BoxSizer->new(wxVERTICAL);
 	$sizer->Add($txt, 0, wxEXPAND|wxADJUST_MINSIZE, 0);
 	$sizer->Add($parent->{update_list}, 1, wxEXPAND, 0);
+	$sizer->Add($parent->{do_update}, 0, wxEXPAND|wxADJUST_MINSIZE, 0);
 	$self->SetSizer($sizer);
 	$sizer->Fit($self);
 	bless($self,$class);
+	
+	EVT_BUTTON($self,$parent->{do_update},\&_update);
 
-	$self->{nextPage}=CPANPLUS::Shell::Wx::UpdateWizard::ProgressPage->new($self->{parent});
+	$self->{nextPage}=CPANPLUS::Shell::Wx::UpdateWizard::ReportPage->new($self->{parent});
 	$self->{nextPage}->SetPrev($self);
-
+	
 	return $self;
 
 }
+
 sub Populate{
 	my $self=shift;
 	$parent=$self->{parent};
 	my $list=$parent->{theList};
 	my $listctrl=$parent->{update_list};
-	$listctrl->Clear();
-#	print Dumper $list;
+	$listctrl->ClearList();
 
 	my @mods=();
 	my $num=1;
@@ -317,28 +355,34 @@ sub Populate{
 			$area eq 'enabled_features' || !($list->{areas_to_update}->{$area}) 
 			);
 		foreach $name (keys(%{$list->{$area}})){
-			push(@mods,"$name v".$list->{$area}->{$name} ) unless grep(/^$name\sv/,@mods);
+			my $h={name=>$name,version=>$list->{$area}->{$name}};
+			#print Dumper $h;
+			push(@mods,$h) unless grep {$_->{name} =~ /^$name$/} @mods;
 			$num++;
 		}
 	}
 	if ($list->{areas_to_update}->{features}){
-		foreach $confDep (keys(%{$list->{features}})){
+		foreach my $confDep (keys(%{$list->{features}})){
 			my $confDepList=$list->{features}->{$confDep};
 			next if ref($confDepList) eq 'SCALAR'; #skip empty refs
 			$confDepList=$$confDepList if ref($confDepList) eq 'REF';
 			foreach $name (keys(%{$confDepList})){
-				push (@mods,"$name v".$confDepList->{$name} ) unless grep(/^$name\sv/,@mods);
+				my $h={name=>$name,version=>$confDepList->{$name}};
+				#print Dumper $h;
+				push (@mods,$h ) unless grep {$_->{name} =~ /^$name$/} @mods;
 				$num++;
 			}
 		}
 	}
 	if ($list->{areas_to_update}->{enabled_features}){
-		foreach $confDep (keys(%{$list->{enabled_features}})){
+		foreach my $confDep (keys(%{$list->{enabled_features}})){
 			my $confDepList=$list->{enabled_features}->{$confDep};
 			next if ref($confDepList) eq 'SCALAR'; #skip empty refs
 			$confDepList=$$confDepList if ref($confDepList) eq 'REF';
 			foreach $name (keys(%{$confDepList})){
-				push (@mods,"$name v".$confDepList->{$name} ) unless grep(/^$name\sv/,@mods);
+				my $h={name=>$name,version=>$confDepList->{$name}};
+				#print Dumper $h;
+				push (@mods,$h ) unless grep {$_->{name} =~ /^$name$/} @mods;
 				$num++;
 			}
 		}
@@ -346,53 +390,116 @@ sub Populate{
 
 	#add all the items to the list
 	foreach $m (@mods){
-		$listctrl->Append( $m );
-	}
-	#select all the items
-	foreach $i (0..@mods){
-		#$parent->{update_list}->Check($i);
-		$parent->{update_list}->SetSelection($i);
+		$listctrl->AddActionWithPre($m->{name},$m->{version},'update');
 	}
 }
-#page 4
-package CPANPLUS::Shell::Wx::UpdateWizard::ProgressPage;
 
-use base qw(CPANPLUS::Shell::Wx::UpdateWizard::Page);
-use Wx qw/:allclasses wxHORIZONTAL
-	wxVERTICAL wxADJUST_MINSIZE wxDefaultPosition wxDefaultSize wxTE_MULTILINE 
-	wxTE_READONLY wxTE_CENTRE wxTE_WORDWRAP wxALIGN_CENTER_VERTICAL wxEXPAND
-	wxALIGN_CENTER_HORIZONTAL wxSUNKEN_BORDER wxGA_HORIZONTAL wxGA_SMOOTH/;
-use Wx::Event qw(EVT_WIZARD_PAGE_CHANGED EVT_WINDOW_CREATE);
-use Data::Dumper;
-
-use Wx::Locale gettext => '_T';
-
-sub new{
-	my $class = shift;
-	my ($parent) = @_;
-    my $self = $class->SUPER::new($parent);
-	
-	$txt= Wx::TextCtrl->new($self, -1, _T("Please wait while we install the selected modules."), wxDefaultPosition, wxDefaultSize, wxTE_MULTILINE|wxTE_READONLY|wxTE_CENTRE|wxTE_WORDWRAP);
-	$parent->{progress} = Wx::Gauge->new($self, -1, 1000, wxDefaultPosition,     wxDefaultSize, wxGA_HORIZONTAL|wxGA_SMOOTH);
-	$parent->{status_text} = Wx::StaticText->new($self, -1, _T("Status text..."), wxDefaultPosition, wxDefaultSize, );
-
-	$txt->Enable(0);
-
-	$sizer = Wx::BoxSizer->new(wxVERTICAL);
-	$sizer->Add($txt, 0, wxEXPAND|wxADJUST_MINSIZE, 0);
-	$sizer->Add($parent->{progress}, 0, wxEXPAND|wxADJUST_MINSIZE, 0);
-	$sizer->Add($parent->{status_text}, 0, wxEXPAND|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL|wxADJUST_MINSIZE, 0);
-	$self->SetSizer($sizer);
-	$sizer->Fit($self);
-
-	$self->{nextPage}=CPANPLUS::Shell::Wx::UpdateWizard::ReportPage->new($self->{parent});
-	$self->{nextPage}->SetPrev($self);
-
-	return $self;
-	
+#run the update
+sub _update{
+	my $self=shift;
+	my $parent=$self->{parent};
+	my $list=$parent->{theList};
+	my $listctrl=$parent->{update_list};
+	my $modtree=Wx::Window::FindWindowByName('tree_modules');
+	print "Running Update...";
+	my $total=$listctrl->GetItemCount;
+	my $progress=Wx::ProgressDialog->new(
+			"Updating CPANPLUS...",
+			"Updating...",$total*6,$self,
+			wxPD_APP_MODAL|wxPD_CAN_ABORT|wxPD_ELAPSED_TIME|wxPD_ESTIMATED_TIME|wxPD_REMAINING_TIME);
+	my $i=1;
+	my $debug='';
+	while ($listctrl->GetItemCount > 0){
+		my $name=$listctrl->GetItemText(0);
+		my $mod=$modtree->_get_mod($name);
+		next unless $mod;
+		$self->_install($mod,$progress,\$i,\$debug);
+		#$mod->install();
+		$listctrl->DeleteItem(0);
+		$i++;
+	}
+	$progress->Destroy();
+	$parent->{problems}->SetValue($parent->{problems}->GetValue.
+		"\nOUTPUT:\n\n".$debug."\n\nSee Log Tab for full output.\n");
+	_uShowErr();
 }
 
-#page 4
+sub _install{
+	my ($self,$mod,$progress,$curProgRef,$txtref)=@_;
+	return unless $mod;
+	$$txtref.=$mod->name.":\n";
+
+	if ($progress->Update($$curProgRef,"Fetching ".$mod->name."...")){
+		$$txtref.="\tFetch: ";
+		if ($mod->fetch()){
+			$$txtref.="[Success]\n";
+			$$curProgRef++;
+		}else{
+			$$txtref.="[Failed]\n";
+			return 0;
+		}
+	}else{$$txtref.="User Cancelled\n";return 0;}
+
+	if ($progress->Update($$curProgRef,"Extracting ".$mod->name."...")){
+		$$txtref.="\tExtract: ";
+		if ($mod->extract()){
+			$$txtref.="[Success]\n";
+			$$curProgRef++;
+		}else{
+			$$txtref.="[Failed]\n";
+			return 0;
+		}
+	}else{$$txtref.="User Cancelled\n";return 0;}
+
+	if ($progress->Update($$curProgRef,"Preparing ".$mod->name."...")){
+		$$txtref.="\tPrepare: ";
+		if ($mod->prepare()){
+			$$txtref.="[Success]\n";
+			$$curProgRef++;
+		}else{
+			$$txtref.="[Failed]\n";
+			return 0;
+		}
+	}else{$$txtref.="User Cancelled\n";return 0;}
+
+	if ($progress->Update($$curProgRef,"Building ".$mod->name."...")){
+		$$txtref.="\tBuild: ";
+		if ($mod->create()){
+			$$txtref.="[Success]\n";
+			$$curProgRef++;
+		}else{
+			$$txtref.="[Failed]\n";
+			return 0;
+		}
+	}else{$$txtref.="User Cancelled\n";return 0;}
+
+	if ($progress->Update($$curProgRef,"Testing ".$mod->name."...")){
+		$$txtref.="\tTest: ";
+		if ($mod->test()){
+			$$txtref.="[Success]\n";
+			$$curProgRef++;
+		}else{
+			$$txtref.="[Failed]\n";
+			return 0;
+		}
+	}else{$$txtref.="User Cancelled\n";return 0;}
+
+	if ($progress->Update($$curProgRef,"Installing ".$mod->name."...")){
+		$$txtref.="\tInstall: ";
+		if ($mod->install()){
+			$$txtref.="[Success]\n";
+			$$curProgRef++;
+		}else{
+			$$txtref.="[Failed]\n";
+			return 0;
+		}
+	}else{$$txtref.="User Cancelled\n";return 0;}
+	
+	return 1;
+}
+
+
+#page 3
 package CPANPLUS::Shell::Wx::UpdateWizard::ReportPage;
 
 use base qw(CPANPLUS::Shell::Wx::UpdateWizard::Page);
@@ -402,6 +509,7 @@ use Wx qw/:allclasses wxHORIZONTAL
 	wxALIGN_CENTER_HORIZONTAL wxSUNKEN_BORDER/;
 use Wx::Event qw(EVT_WIZARD_PAGE_CHANGED EVT_WINDOW_CREATE);
 use Data::Dumper;
+use CPANPLUS::Shell::Wx::util;
 
 use Wx::Locale gettext => '_T';
 
@@ -410,7 +518,9 @@ sub new{
 	my ($parent) = @_;
     my $self = $class->SUPER::new($parent);
 
-	$parent->{problems} = Wx::TextCtrl->new($self, -1, _T("If there were any problems, they are listed below."), wxDefaultPosition, wxDefaultSize, wxTE_MULTILINE|wxTE_READONLY|wxTE_CENTRE|wxTE_WORDWRAP);
+	$self->{type}=REPORT_PAGE;
+
+	$parent->{problems} = Wx::TextCtrl->new($self, -1, _T("If there were any problems, they are listed below."), wxDefaultPosition, wxDefaultSize, wxTE_MULTILINE|wxTE_READONLY|wxTE_WORDWRAP);
 	$parent->{problems}->Enable(0);
 
 	$sizer = Wx::BoxSizer->new(wxVERTICAL);
@@ -422,4 +532,9 @@ sub new{
 	
 }
 
+sub ShowDebug{
+	my $self=shift;
+	
+	
+}
 1;

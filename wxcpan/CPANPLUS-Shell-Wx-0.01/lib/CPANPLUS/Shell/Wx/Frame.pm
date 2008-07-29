@@ -73,7 +73,7 @@ sub OnCreate{
 	$self->_setup_toolbar();
 	$self->_setup_menu();
 	$self->_setup_modules();
-	$self->_setup_actionslist();
+#	$self->_setup_actionslist();
 
 	my $main_nb=Wx::Window::FindWindowByName('nb_main');
 	$self->{podReader}=CPANPLUS::Shell::Wx::PODReader::Embed->new($main_nb);
@@ -512,9 +512,9 @@ sub OnCreate {
 ########################################
 
 package CPANPLUS::Shell::Wx::Frame::LogConsole;
-use Wx::Event qw(EVT_WINDOW_CREATE EVT_BUTTON);
+use Wx::Event qw(EVT_WINDOW_CREATE EVT_BUTTON EVT_TEXT);
 use Data::Dumper;
-
+use Wx qw/wxRED/;
 BEGIN {
 	use vars qw( @ISA $VERSION );
 	@ISA     = qw( Wx::TextCtrl Wx::Log Wx::LogTextCtrl);
@@ -526,11 +526,25 @@ use base 'Wx::TextCtrl';
 sub new {
 	my $class = shift;
 	my $self  = $class->SUPER::new();    # create an 'empty' Frame object
+	EVT_TEXT($self,$self,\&DoLog);
+	$self->{old_pos}=0;
+	$self->{new_pos}=0;
 	return $self;
 }
 
+#this method is called after the text is sent to the LogConsole.
+#it is supposed to colorize the messages based on the level,
+#but it doesn't seem to work correctly as of yet.
+#TODO Fix this so it colors correctly.
 sub DoLog{
-	print "DoLog ".Dumper(@_);
+	my ($self,$event)=@_;
+	$self->{new_pos}=$self->GetLastPosition();
+	my $txt=$self->GetRange($self->{old_pos},$self->{new_pos});
+	$txt=~/((\d\d\:\s*\d\d:\s*\d\d\s*[P|A]M):\s*(\[.*?\])?)\s*(.*)/; #\s*(\[.*?\])?(.*)/;
+	my $prefix=$1;my $time=$2;my $cpan=$3;my $msg=$4;
+	my $msg_start=$self->{old_pos}+length($prefix);
+	$self->SetStyle($msg_start,$self->{new_pos},Wx::TextAttr->new(wxRED));
+	$self->{old_pos}=$self->GetLastPosition();
 }
 sub DoLogString{
 	print "DoLogString ".Dumper(@_);
@@ -609,5 +623,92 @@ sub OnLinkClicked{
 	my $ctrl=$event->GetEventObject();
 	my $link=$event->GetLinkInfo()->GetHref();
 	$self->{view}->LoadPage(_uGetInstallPath("CPANPLUS::Shell::Wx::help::$link"));
+}
+
+########################################
+############ Actions List ##############
+########################################
+package CPANPLUS::Shell::Wx::Frame::ActionsList;
+use Data::Dumper;
+use CPANPLUS::Shell::Wx::util;
+
+use Wx qw[:everything wxDEFAULT_FRAME_STYLE wxDefaultPosition 
+	wxDefaultSize wxLIST_AUTOSIZE wxLC_REPORT wxSUNKEN_BORDER
+	wxDefaultValidator wxLC_LIST];
+use Wx::Event qw[EVT_WINDOW_CREATE];
+use base qw(Wx::ListCtrl);
+use strict;
+#enable gettext support
+use Wx::Locale gettext => '_T';
+
+sub new {
+	my( $self, $parent, $id, $pos, $size, $style, $validator, $name ) = @_;
+	$parent = undef              unless defined $parent;
+	$id     = -1                 unless defined $id;
+	$pos    = wxDefaultPosition  unless defined $pos;
+	$size   = wxDefaultSize      unless defined $size;
+	$validator= wxDefaultValidator unless defined $validator;
+	$name   = "ActionsList"      unless defined $name;
+	
+	Wx::InitAllImageHandlers();
+	
+	$style = wxLC_REPORT|wxSUNKEN_BORDER;
+		#unless defined $style;
+
+	$self = $self->SUPER::new($parent, $id, $pos, $size, $style );
+
+	$self->InsertColumn( 0, _T('Module'));
+	$self->InsertColumn( 1, _T('Action') );
+	$self->{lastItem}=0;
+
+	EVT_WINDOW_CREATE( $self, $self, \&OnCreate );
+
+	return $self;
+
+}
+sub OnCreate{
+	my $self=shift;
+	my $modtree=Wx::Window::FindWindowByName('tree_modules');
+	$self->AssignImageList($modtree->GetImageList);	
+}
+sub ClearList{
+	my $self=shift;
+	#print "Clearing ".$self->GetItemCount." items\n";
+	$self->DeleteAllItems();
+	$self->{lastItem}=0;
+}
+sub AddAction{
+	my ($self,$modName,$version,$action)=@_;
+	my $modtree=Wx::Window::FindWindowByName('tree_modules');
+	my $mod=$modtree->_get_mod($modName,$version);
+	return 0 unless $mod;
+	print $mod->package_name." - ".$mod->installed_version." > ".$mod->version."($version)\n";
+	return 1 if ($version!=0.0 && $mod->installed_version > $version);
+	my $icon=$modtree->_get_status_icon("$modName-$version");
+	#print "$modName-$version icon is $icon.\n";
+	$self->InsertImageStringItem( 0, $mod->package_name.($version?"-$version":'') ,$icon );
+	$self->SetItem( 0, 1, $action );
+	$self->SetColumnWidth(0,wxLIST_AUTOSIZE);
+	$self->SetColumnWidth(1,wxLIST_AUTOSIZE);
+	$self->{lastItem}++;
+	return 1;
+}
+sub AddActionWithPre{
+	my ($self,$modName,$version,$action)=@_;
+	
+	my $modtree=Wx::Window::FindWindowByName('tree_modules');
+	$self->AddAction($modName,$version,$action);
+	
+	if ($action eq lc(_T('Install')) || $action eq lc(_T('Update'))){
+		#print "$action with prereqs\n";
+		my @prereqs=$modtree->CheckPrerequisites($modName);
+		foreach my $preName (@prereqs){
+			my $mod=$modtree->_get_mod($preName);				#get the module
+			my $type=_T("Install");								#set type to install
+			$type=_T("Update") if ($mod->installed_version);	#set type to update if already installed
+			$self->AddAction($preName,$version,$type);			#add the action
+		}	
+	}	
+	
 }
 1;
