@@ -83,7 +83,7 @@ BEGIN {
   $VERSION    =   '0.01';
 }
 
-#initialize variables
+#initialize the class
 sub new {
   my $proto = shift;
   my $class = ref($proto) || $proto;
@@ -93,7 +93,7 @@ sub new {
   return $self;
 }
 
-#create the shell
+#create the shell and start the app
 sub shell{
 	my $self=shift;
 	my $app=CPANPLUS::Shell::Wx::App->new();
