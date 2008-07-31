@@ -1280,6 +1280,8 @@ sub search{
 		if ($s=~m|/(.*)/(.*)|){
 			#print "Matching Regex...\n";
 			eval "\$s=qr/$1/".($2||'');
+		}else{
+			$s=qr/$s/i;
 		}
 	}
 	$type= lc($type);
@@ -1312,7 +1314,7 @@ sub search{
 	#remove duplicates.
 	#note: there is a better way, using List::MoreUtils,
 	#   but i'm trying to cut back on requirements for wxCPAN
-	my $percent = MAX_PROGRESS_VALUE/@modules;
+	my $percent = MAX_PROGRESS_VALUE/(@modules||MAX_PROGRESS_VALUE);
 	$count=0;
 	my @newmods=();
 	foreach $m (@modules){

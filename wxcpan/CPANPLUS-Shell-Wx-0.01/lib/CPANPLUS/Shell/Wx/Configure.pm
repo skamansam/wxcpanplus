@@ -23,16 +23,35 @@ use base 'Wx::Dialog';
 sub new {
 	my $class = shift;
 	my $self  = $class->SUPER::new();    # create an 'empty' Frame object
+	
 	$self->{cpan}   = Wx::Window::FindWindowByName('main_window')->{cpan};
 	$self->{config} = $self->{cpan}->configure_object();
 	
 	#NOTE Freeze object so we can revert changes upon cancel
 	use Storable qw[dclone];
 	$self->{old_conf}=dclone($self->{config}->conf);
-
+	$self->_check_config_file();
 	return $self;
 
 }
+
+#this checks to see if user config file is present.
+#if not, it creates one
+sub _check_config_file{
+	my $self=shift;
+	my $file=File::Spec->catfile($ENV{'HOME'},'.wxcpan','.config');
+	unless (-e $file ){
+		if (open(F,">$file") ){
+			print F '';
+			close F;
+		}else{
+			Wx::LogError("Cannot create wxCPAN Preferences File: $file");
+		}
+	}else{
+		Wx::LogMessage("Using wxCPAN Preferences file: $file");
+	}
+}
+
 ########################################
 ############ LibListCtrl ###############
 ########################################

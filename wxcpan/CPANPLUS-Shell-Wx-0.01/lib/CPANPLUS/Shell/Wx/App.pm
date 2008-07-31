@@ -18,6 +18,7 @@ BEGIN {
 
 use base 'Wx::App';
 
+#create a new app instance
 sub new {
     my( $class, $parent ) = @_;
 	print _T("Creating new CPANPLUS::Shell::Wx::App...\n");
@@ -25,6 +26,7 @@ sub new {
     return $self;
 }
 
+#initialize the app
 sub OnInit{
 	my $self=shift;
 	
@@ -54,15 +56,9 @@ sub OnInit{
 	  or return;
 	print _T("[Done]\n");
 
-
-#	$self->{mainWin}=CPANPLUS::Shell::Wx::Frame->new($self);
+	#show the main window
 	$mainWin->Show(1);
-#	$splash->Destroy();
+
 	return 1;
-
-
-	#print Dumper $self,$parent;
-	$self->{prefsWin} = $self->{xresPrefs}->LoadDialog( $self, 'prefs_window' )
-	  or return;
 }
 1;

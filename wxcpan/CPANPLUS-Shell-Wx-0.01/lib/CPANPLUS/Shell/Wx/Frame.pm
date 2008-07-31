@@ -60,13 +60,6 @@ sub OnCreate{
 	#unused variable used to initialize cpan
 	my $unused_var_to_init_cpanpp=$self->{cpan}->module_tree('CPANPLUS');
 	
-	#create bitmaps for later reference
-	$self->{icon_installed}=Wx::ArtProvider::GetBitmap(wxART_TICK_MARK,wxART_BUTTON_C);
-	$self->{icon_update}=Wx::ArtProvider::GetBitmap(wxART_ADD_BOOKMARK,wxART_BUTTON_C);
-	$self->{icon_remove}=Wx::ArtProvider::GetBitmap(wxART_DEL_BOOKMARK,wxART_BUTTON_C);
-	$self->{icon_not_installed}=Wx::ArtProvider::GetBitmap(wxART_NEW_DIR,wxART_BUTTON_C);
-	$self->{icon_unknown}=Wx::ArtProvider::GetBitmap(wxART_QUESTION,wxART_BUTTON_C);
-
 	$self->{is_created}=1;	
 	
 	#ssetup various controls
@@ -101,33 +94,8 @@ sub _setup_modules{
 	my $self=shift;
 	print "Setting up modules...\n";
 	my $panel=Wx::Window::FindWindowByName('nb_main_mod_tree_pane');
-
-	my $imgList=Wx::ImageList->new(16,16,1);
-	$images=CPANPLUS::Shell::Wx::util::images->new(
-		installed => CPANPLUS::Shell::Wx::util::imagedata->new(
-				idx		=>	$imgList->Add($self->{icon_installed}),
-				icon	=>	$self->{icon_installed}
-			),
-		update => CPANPLUS::Shell::Wx::util::imagedata->new(
-				idx		=>	$imgList->Add($self->{icon_update}),
-				icon	=>	$self->{icon_update}
-			),
-		remove => CPANPLUS::Shell::Wx::util::imagedata->new(
-				idx		=>	$imgList->Add($self->{icon_remove}),
-				icon	=>	$self->{icon_remove}
-			),
-		not_installed => CPANPLUS::Shell::Wx::util::imagedata->new(
-				idx		=>	$imgList->Add($self->{icon_not_installed}),
-				icon	=>	$self->{icon_not_installed}
-			),
-		unknown => CPANPLUS::Shell::Wx::util::imagedata->new(
-				idx		=>	$imgList->Add($self->{icon_unknown}),
-				icon	=>	$self->{icon_unknown}
-			),
-		imageList=>$imgList
-		);
 	
-	$self->{status_icons}=$images;
+	$self->{status_icons}=_uGetImageData();
 
 #	print "Setting Module tree...\n";
 	$self->{panel}=$panel;
@@ -166,20 +134,21 @@ sub SetAction{
 
 	my $actionslist=Wx::Window::FindWindowByName('main_actions_list');
 	my $modtree=Wx::Window::FindWindowByName('tree_modules');
-	$actionslist->InsertStringItem( 0, $modName );
-	$actionslist->SetItem( 0, 1, $cmd );
-	
-	if ($cmd eq _T('Install') || $cmd eq _T('Update')){
-		print "$cmd with prereqs\n";
-		my @prereqs=$modtree->CheckPrerequisites($modName);
-		foreach $preName (@prereqs){
-			my $mod=$modtree->_get_mod($preName);
-			my $type=_T("Install");
-			$type=_T("Update") if ($mod->installed_version);
-			$actionslist->InsertStringItem( 0, $preName );
-			$actionslist->SetItem( 0, 1, $type );
-		}	
-	}	
+	$actionslist->AddActionWithPre($modName,undef,$cmd);
+#	$actionslist->InsertStringItem( 0, $modName );
+#	$actionslist->SetItem( 0, 1, $cmd );
+#	
+#	if ($cmd eq _T('Install') || $cmd eq _T('Update')){
+#		print "$cmd with prereqs\n";
+#		my @prereqs=$modtree->CheckPrerequisites($modName);
+#		foreach $preName (@prereqs){
+#			my $mod=$modtree->_get_mod($preName);
+#			my $type=_T("Install");
+#			$type=_T("Update") if ($mod->installed_version);
+#			$actionslist->InsertStringItem( 0, $preName );
+#			$actionslist->SetItem( 0, 1, $type );
+#		}	
+#	}	
 }
 
 sub CheckUpdate{
@@ -195,7 +164,7 @@ sub CheckUpdate{
 sub CheckFirstTime{
 	my $self = shift;
 	my ($event) = @_;
-	unless (-e File::Spec->catfile($ENV{'HOME'},'.wxcpan','conf.stored')){
+	unless (-e File::Spec->catfile($ENV{'HOME'},'.wxcpan','.config')){
 		my $reply=Wx::MessageBox(_T("This is the first time you have run wxCPAN. Would you like to review your preferences?"), _T("Update CPANPLUS?"),
                             wxYES_NO, $self);
 			$self->ShowPrefs if $reply==wxYES;
@@ -475,6 +444,36 @@ sub OnClick{
 }
 
 ########################################
+############# Search Box ###############
+########################################
+
+package CPANPLUS::Shell::Wx::Frame::SearchBox;
+use base 'Wx::ComboBox';
+use Wx::Event qw/EVT_WINDOW_CREATE EVT_TEXT_ENTER/;
+
+sub new {
+	my $class = shift;
+	my $self  = $class->SUPER::new();    # create an 'empty' Frame object
+	EVT_WINDOW_CREATE( $self, $self, \&OnCreate );
+
+	return $self;
+}
+
+sub OnCreate {
+	my $self = shift;
+	EVT_TEXT_ENTER( $self, $self, \&OnEnter );
+}
+
+sub OnEnter{
+	my $self=shift;
+	my $searchbox=$self->GetValue();
+	my $typebox=Wx::Window::FindWindowByName('cb_search_type')->GetValue();
+	Wx::Window::FindWindowByName('main_window')->{list}->search(
+		$typebox,	
+		$searchbox);
+	
+}
+########################################
 ############### Toolbar ################
 ########################################
 
@@ -634,7 +633,7 @@ use CPANPLUS::Shell::Wx::util;
 
 use Wx qw[:everything wxDEFAULT_FRAME_STYLE wxDefaultPosition 
 	wxDefaultSize wxLIST_AUTOSIZE wxLC_REPORT wxSUNKEN_BORDER
-	wxDefaultValidator wxLC_LIST];
+	wxDefaultValidator wxLC_LIST wxIMAGE_LIST_NORMAL wxIMAGE_LIST_SMALL];
 use Wx::Event qw[EVT_WINDOW_CREATE];
 use base qw(Wx::ListCtrl);
 use strict;
@@ -669,7 +668,8 @@ sub new {
 sub OnCreate{
 	my $self=shift;
 	my $modtree=Wx::Window::FindWindowByName('tree_modules');
-	$self->AssignImageList($modtree->GetImageList);	
+	my $images=_uGetImageData;
+	$self->SetImageList($images->imageList());	
 }
 sub ClearList{
 	my $self=shift;
@@ -679,17 +679,23 @@ sub ClearList{
 }
 sub AddAction{
 	my ($self,$modName,$version,$action)=@_;
+	$version=$version||0.0;
 	my $modtree=Wx::Window::FindWindowByName('tree_modules');
 	my $mod=$modtree->_get_mod($modName,$version);
+	
 	return 0 unless $mod;
 	print $mod->package_name." - ".$mod->installed_version." > ".$mod->version."($version)\n";
 	return 1 if ($version!=0.0 && $mod->installed_version > $version);
+	
 	my $icon=$modtree->_get_status_icon("$modName-$version");
-	#print "$modName-$version icon is $icon.\n";
+	print "$modName-$version icon is $icon.\n";
+	print "Num Images: ".$self->GetImageList(wxIMAGE_LIST_NORMAL)."\n";#->GetImageCount()."\n";
 	$self->InsertImageStringItem( 0, $mod->package_name.($version?"-$version":'') ,$icon );
+	print "Inserted...";
 	$self->SetItem( 0, 1, $action );
-	$self->SetColumnWidth(0,wxLIST_AUTOSIZE);
-	$self->SetColumnWidth(1,wxLIST_AUTOSIZE);
+	print "Set...\n";
+	#$self->SetColumnWidth(0,wxLIST_AUTOSIZE);
+	#$self->SetColumnWidth(1,wxLIST_AUTOSIZE);
 	$self->{lastItem}++;
 	return 1;
 }
@@ -698,10 +704,12 @@ sub AddActionWithPre{
 	
 	my $modtree=Wx::Window::FindWindowByName('tree_modules');
 	$self->AddAction($modName,$version,$action);
+	print "Added action\n";
 	
-	if ($action eq lc(_T('Install')) || $action eq lc(_T('Update'))){
-		#print "$action with prereqs\n";
+	if (lc($action) eq lc(_T('Install')) || lc($action) eq lc(_T('Update'))){
+		print "$action with prereqs\n";
 		my @prereqs=$modtree->CheckPrerequisites($modName);
+		print Dumper @prereqs;
 		foreach my $preName (@prereqs){
 			my $mod=$modtree->_get_mod($preName);				#get the module
 			my $type=_T("Install");								#set type to install

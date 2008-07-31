@@ -2,6 +2,7 @@ package CPANPLUS::Shell::Wx::util;
 
 use Wx::Event qw(EVT_MENU EVT_TOOL EVT_WINDOW_CREATE EVT_BUTTON);
 use Wx::ArtProvider qw/:artid :clientid/;
+use Wx;
 use CPANPLUS;
 use Cwd;
 use Data::Dumper;
@@ -14,9 +15,7 @@ use Wx::Locale gettext => '_T';
 
 use base qw(Exporter);
 our @EXPORT = qw(_uPopulateTree _uGetTimed _uGetInstallPath 
-		_uShowErr _u_t_ShowErr);
-
-
+		_uShowErr _u_t_ShowErr _uGetImageData);
 
 #TODO this method populates a tree with the correct status icon
 sub _uPopulateModulesWithIcons{
@@ -123,6 +122,41 @@ struct 'CPANPLUS::Shell::Wx::util::images' => {
 	unknown			=> 'CPANPLUS::Shell::Wx::util::imagedata',
 	imageList		=> 'Wx::ImageList'
 };
+
+#this method returns a images struct with appropriate data
+sub _uGetImageData{
+	my $imgList=Wx::ImageList->new(16,16,1);
+	$icon_installed=Wx::ArtProvider::GetBitmap(wxART_TICK_MARK,wxART_BUTTON_C);
+	$icon_update=Wx::ArtProvider::GetBitmap(wxART_ADD_BOOKMARK,wxART_BUTTON_C);
+	$icon_remove=Wx::ArtProvider::GetBitmap(wxART_DEL_BOOKMARK,wxART_BUTTON_C);
+	$icon_not_installed=Wx::ArtProvider::GetBitmap(wxART_NEW_DIR,wxART_BUTTON_C);
+	$icon_unknown=Wx::ArtProvider::GetBitmap(wxART_QUESTION,wxART_BUTTON_C);
+	
+	$images=CPANPLUS::Shell::Wx::util::images->new(
+		installed => CPANPLUS::Shell::Wx::util::imagedata->new(
+				idx		=>	$imgList->Add($icon_installed),
+				icon	=>	$icon_installed
+			),
+		update => CPANPLUS::Shell::Wx::util::imagedata->new(
+				idx		=>	$imgList->Add($icon_update),
+				icon	=>	$icon_update
+			),
+		remove => CPANPLUS::Shell::Wx::util::imagedata->new(
+				idx		=>	$imgList->Add($icon_remove),
+				icon	=>	$icon_remove
+			),
+		not_installed => CPANPLUS::Shell::Wx::util::imagedata->new(
+				idx		=>	$imgList->Add($icon_not_installed),
+				icon	=>	$icon_not_installed
+			),
+		unknown => CPANPLUS::Shell::Wx::util::imagedata->new(
+				idx		=>	$imgList->Add($icon_unknown),
+				icon	=>	$icon_unknown
+			),
+		imageList=>$imgList
+		);
+	return $images;
+}
 
 
 1;
