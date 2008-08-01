@@ -1290,52 +1290,88 @@ sub search{
 	my @names=();
 	my $numFound=0;
 	my $tmpCnt=1;
-	@modules=();
+	$modules={};
 	if ($type eq 'any' || $type eq 'all'){
-		my @terms=(CPANPLUS::Module->accessors(),CPANPLUS::Module::Author->accessors());
-		my $percent = MAX_PROGRESS_VALUE/@terms;
+		my @modterms=CPANPLUS::Module::accessors(); #('name','version','path','comment','package','description','dslip','status');
+		my @authterms=CPANPLUS::Module::Author::accessors(); #('author','cpanid','email');
+		my $percent = MAX_PROGRESS_VALUE/(@modterms+@authterms);
 		my $count=0;
-		foreach $term (@terms){
-			if ($progress->Update($percent*($count++),_T("Found ").$numFound._T(" items"))){
-				my @mods=$self->{cpan}->search(type => $term, allow => \@search);
-				push @modules, @mods;
-				$numFound+=@mods;
-			}else{
-				$progress->Destroy();
-				return;
-			}
+		foreach $term (@modterms){
+			if ($progress->Update($percent*($count++),_T("Searching in $term: Found ").keys(%$modules)._T(" items"))){
+				foreach $m ($self->{cpan}->search(type => $term, allow => \@search)){
+					if ($m->isa(CPANPLUS::Module)){
+						#print "module: ".$m->name." [".($percent*($count++)/MAX_PROGRESS_VALUE)."]\n";
+						$modules->{$m->name} = $m;
+					}
+					if ($m->isa(CPANPLUS::Module::Author)){
+						foreach $amod ($m->modules()){
+							#print "amodule: ".$m->name." [".($percent*($count++)/MAX_PROGRESS_VALUE)."]\n";
+							$modules->{$amod->name} = $amod;
+						}					
+					}
+				}
+			}else{$progress->Destroy();return;}
 		}
 	}else{
-		@modules=$self->{cpan}->search(type => $type, allow => \@search);
-		$numFound=@modules;
-		return unless $progress->Update(MAX_PROGRESS_VALUE-1,_T("Found ").$numFound._T(" items"))
+		foreach $m ($self->{cpan}->search(type => $type, allow => \@search)){
+			return unless $progress->Update(MAX_PROGRESS_VALUE-1,_T("Found ").keys(%$modules)._T(" items"));
+			$modules->{$m->name}=$m;
+		}
 	}
 	
-	#remove duplicates.
-	#note: there is a better way, using List::MoreUtils,
-	#   but i'm trying to cut back on requirements for wxCPAN
-	my $percent = MAX_PROGRESS_VALUE/(@modules||MAX_PROGRESS_VALUE);
-	$count=0;
-	my @newmods=();
-	foreach $m (@modules){
-		return unless $progress->Update($percent*$count,_T("Removing Duplicates..."));
-		push(@newmods,$m) unless (grep(($m->name eq $_->name),@newmods));
-		$count++;
-	}
-	@modules=@newmods;
-	$numFound=@modules;
-	$self->PopulateWithModuleList($progress,$numFound,@modules);
+	$self->PopulateWithModuleHash($progress,$modules);
 	$progress->Destroy;
 
 	
-	Wx::Window::FindWindowByName('module_splitter')->FitInside();
-	Wx::Window::FindWindowByName('module_splitter')->UpdateWindowUI(wxUPDATE_UI_RECURSE );
+	#Wx::Window::FindWindowByName('module_splitter')->FitInside();
+	#Wx::Window::FindWindowByName('module_splitter')->UpdateWindowUI(wxUPDATE_UI_RECURSE );
 
 	_uShowErr;
 	print "Window Height: ".$self->GetClientSize()->GetWidth." , ".$self->GetClientSize()->GetHeight."\n";
 #	print Dumper $self->GetClientSize();
 	$self->{statusBar}->SetStatusText('');
 }
+
+sub PopulateWithModuleHash{
+	my $self=shift;
+	my $progress=shift || Wx::ProgressDialog->new(_T("Please Wait..."),
+				_T("Displaying List..."),
+				MAX_PROGRESS_VALUE,
+				$self,
+				wxPD_APP_MODAL|wxPD_CAN_ABORT|wxPD_ESTIMATED_TIME|wxPD_REMAINING_TIME);
+	my $modules=shift;
+	my @names=();
+	my $count=0;
+	my $numFound=keys(%$modules);
+	return unless $numFound>0;
+	my $percent=MAX_PROGRESS_VALUE/$numFound;
+	return unless $progress->Update(0,_T("Getting info for $numFound items."));
+
+	#get information from modules
+	foreach $modname (keys(%$modules)){
+		last unless $progress->Update($percent*$count);
+		if ($modules->{$modname}->isa('CPANPLUS::Module')){
+			push(@names,$modname);
+		}
+		if ($modules->{$modname}->isa('CPANPLUS::Module::Author')){
+			foreach $m ($modules->{$modname}->modules()){
+				push(@names,$m->name);
+			}
+		}
+		$count++;
+	}
+
+	#populate the tree ctrl
+	return unless $progress->Update(0,_T("Populating tree with ").$numFound._T(" items.") );
+	$count=0;
+	foreach $item (sort {lc($a) cmp lc($b)} @names){
+		return unless $progress->Update($percent*$count);
+		$self->AppendItem($self->GetRootItem(),$item,$self->_get_status_icon($item));
+		$count++;
+	}
+	return 1;
+}
+
 #this method populates the list with the given module objects.
 #if the object is an Author, then get the module names he/she has written
 sub PopulateWithModuleList{
