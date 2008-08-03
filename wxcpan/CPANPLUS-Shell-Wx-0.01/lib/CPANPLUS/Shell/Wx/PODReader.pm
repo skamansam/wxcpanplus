@@ -133,6 +133,7 @@ use File::Spec;
 use Data::Dumper;
 use LWP::Simple;
 use URI::Escape;
+use File::HomeDir;
 
 use constant NUM_SEARCHES=>10;
 
@@ -233,7 +234,7 @@ sub new {
 sub GetSearches{
 	my ($self,$event)=@_;
 	my @searches=();
-	my $saveDir=File::Spec->catdir($ENV{'HOME'},'.wxPODReader');
+	my $saveDir=File::Spec->catdir(File::HomeDir->my_home,'.wxPODReader');
 	my $searchFile=File::Spec->catfile($saveDir,'searches.txt');
 	mkdir($saveDir,0750) unless (-e $saveDir);
 	if (open(F, $searchFile)){
@@ -248,7 +249,7 @@ sub GetSearches{
 #save previous searches to file: $ENV{'HOME'}.'.wxPODReader/searches.txt'
 sub SaveSearches{
 	my ($self,$event)=@_;
-	my $saveDir=File::Spec->catdir($ENV{'HOME'},'.wxPODReader');
+	my $saveDir=File::Spec->catdir(File::HomeDir->my_home,'.wxPODReader');
 	my $searchFile=File::Spec->catfile($saveDir,'searches.txt');
 	mkdir($saveDir,0750) unless (-e $saveDir);
 	

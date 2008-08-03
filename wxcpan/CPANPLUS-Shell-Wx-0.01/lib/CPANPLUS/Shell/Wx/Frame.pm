@@ -131,24 +131,9 @@ sub ShowPODReader{
 }
 sub SetAction{
 	my ($self,$menu,$cmd_event,$modName,$cmd)=@_;
-
 	my $actionslist=Wx::Window::FindWindowByName('main_actions_list');
 	my $modtree=Wx::Window::FindWindowByName('tree_modules');
 	$actionslist->AddActionWithPre($modName,undef,$cmd);
-#	$actionslist->InsertStringItem( 0, $modName );
-#	$actionslist->SetItem( 0, 1, $cmd );
-#	
-#	if ($cmd eq _T('Install') || $cmd eq _T('Update')){
-#		print "$cmd with prereqs\n";
-#		my @prereqs=$modtree->CheckPrerequisites($modName);
-#		foreach $preName (@prereqs){
-#			my $mod=$modtree->_get_mod($preName);
-#			my $type=_T("Install");
-#			$type=_T("Update") if ($mod->installed_version);
-#			$actionslist->InsertStringItem( 0, $preName );
-#			$actionslist->SetItem( 0, 1, $type );
-#		}	
-#	}	
 }
 
 sub CheckUpdate{
@@ -164,7 +149,7 @@ sub CheckUpdate{
 sub CheckFirstTime{
 	my $self = shift;
 	my ($event) = @_;
-	unless (-e File::Spec->catfile($ENV{'HOME'},'.wxcpan','.config')){
+	unless (-e _uGetPath($self->{config},'app_config')){
 		my $reply=Wx::MessageBox(_T("This is the first time you have run wxCPAN. Would you like to review your preferences?"), _T("Update CPANPLUS?"),
                             wxYES_NO, $self);
 			$self->ShowPrefs if $reply==wxYES;
@@ -655,10 +640,7 @@ sub new {
 		#unless defined $style;
 
 	$self = $self->SUPER::new($parent, $id, $pos, $size, $style );
-
-	$self->InsertColumn( 0, _T('Module'));
-	$self->InsertColumn( 1, _T('Action') );
-	$self->{lastItem}=0;
+	$self->{hasCreated}=0;
 
 	EVT_WINDOW_CREATE( $self, $self, \&OnCreate );
 
@@ -667,35 +649,58 @@ sub new {
 }
 sub OnCreate{
 	my $self=shift;
+	return if $self->{hasCreated};
 	my $modtree=Wx::Window::FindWindowByName('tree_modules');
 	my $images=_uGetImageData;
-	$self->SetImageList($images->imageList());	
+	
+	$self->SetImageList($images->imageList(),wxIMAGE_LIST_NORMAL);	
+
+#	$self->InsertColumn( 0, _T('Module'));
+#	$self->InsertColumn( 1, _T('Action') );
+	
+
+	$self->{lastItem}=0;
+	$self->{hasCreated}=1;
 }
 sub ClearList{
 	my $self=shift;
-	#print "Clearing ".$self->GetItemCount." items\n";
+	print "Clearing ".$self->GetItemCount." items\n";
 	$self->DeleteAllItems();
+	$self->InsertColumn( 0, _T('Module'));
+	$self->InsertColumn( 1, _T('Action') );
 	$self->{lastItem}=0;
+
 }
+
+#check to make sure we have the correct columns
+sub _check_columns{
+	my $self=shift;
+	if ($self->GetColumnCount!=2){
+		$self->DeleteColumn(0) while($self->GetColumnCount);
+		$self->InsertColumn( 0, _T('Module'));
+		$self->InsertColumn( 1, _T('Action') );
+	}
+}
+#Add an action to the list
+#TODO make icons work
 sub AddAction{
 	my ($self,$modName,$version,$action)=@_;
 	$version=$version||0.0;
 	my $modtree=Wx::Window::FindWindowByName('tree_modules');
 	my $mod=$modtree->_get_mod($modName,$version);
-	
 	return 0 unless $mod;
-	print $mod->package_name." - ".$mod->installed_version." > ".$mod->version."($version)\n";
+
+	$self->_check_columns(); #make sure we have the necessary columns
+
+	#do nothing if we have a more updated version installed
 	return 1 if ($version!=0.0 && $mod->installed_version > $version);
 	
-	my $icon=$modtree->_get_status_icon("$modName-$version");
-	print "$modName-$version icon is $icon.\n";
-	print "Num Images: ".$self->GetImageList(wxIMAGE_LIST_NORMAL)."\n";#->GetImageCount()."\n";
-	$self->InsertImageStringItem( 0, $mod->package_name.($version?"-$version":'') ,$icon );
-	print "Inserted...";
-	$self->SetItem( 0, 1, $action );
-	print "Set...\n";
-	#$self->SetColumnWidth(0,wxLIST_AUTOSIZE);
-	#$self->SetColumnWidth(1,wxLIST_AUTOSIZE);
+	#insert the item
+	my $itemname="$modName-$version";
+	my $icon=$modtree->_get_status_icon($itemname);
+	my $idx=$self->InsertStringItem( 0, $itemname);
+	$self->SetItem( $idx, 1, $action );
+	$self->SetColumnWidth($_,wxLIST_AUTOSIZE) foreach(0...($self->GetColumnCount()-1));
 	$self->{lastItem}++;
 	return 1;
 }
@@ -709,7 +714,7 @@ sub AddActionWithPre{
 	if (lc($action) eq lc(_T('Install')) || lc($action) eq lc(_T('Update'))){
 		print "$action with prereqs\n";
 		my @prereqs=$modtree->CheckPrerequisites($modName);
-		print Dumper @prereqs;
+		#print Dumper @prereqs;
 		foreach my $preName (@prereqs){
 			my $mod=$modtree->_get_mod($preName);				#get the module
 			my $type=_T("Install");								#set type to install

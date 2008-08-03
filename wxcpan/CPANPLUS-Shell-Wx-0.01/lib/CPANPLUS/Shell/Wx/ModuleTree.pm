@@ -86,6 +86,7 @@ sub new {
 	EVT_TREE_SEL_CHANGED( $self, $self, \&OnSelChanged);	#when a user changes the selection
 	EVT_TREE_ITEM_ACTIVATED($self, $self, \&OnDblClick);	#When the user double-clicks an item
 	EVT_TREE_ITEM_RIGHT_CLICK( $self, $self, \&ShowPopupMenu );#when the user wants a pop-up menu
+	#$self->SetWindowStyleFlag($self->GetWindowStyleFlag()|wxVSCROLL);
 
 	return $self;
 }
@@ -274,7 +275,7 @@ sub GetPrereqs{
 	return unless $mod; #if we can't get a module from the name, return
 	
 	#set up the directory structure fro storing the yml file
-	my $storedDir=File::Spec->catdir($ENV{HOME},".cpanplus","authors","id"); #the top-level directory for storing files
+	my $storedDir=_uGetPath($self->{config},'cpp_mod_dir'); #the top-level directory for storing files
 	my $author=$mod->author->cpanid; #get the cpanid of the author
 	my @split=split('',$author); #split the author into an array so we can:
 	my $dest=File::Spec->catdir($storedDir,$split[0],$split[0].$split[1],$author); #extract the first letters
@@ -287,10 +288,10 @@ sub GetPrereqs{
 	if (-e $dest){
 		$ymldata=LoadFile($dest);		
 	}else{
-		mkpath($dest,0,0775) unless (-d $dest);
-		my $yml=getstore($src,$dest) ;
-		$yml=get($src);
-		$ymldata=Load($yml);		
+		mkpath($dest,0,0775) unless (-d $dest);		#create the path
+		my $yml=getstore($src,$dest) ;				#get and store the yaml file
+		$yml=get($src);								#get the file. TODO add test for existence of yaml file
+		$ymldata=Load($yml);						#load the data
 	}
 
 	#return the prequisites
@@ -311,16 +312,18 @@ sub GetPrereqs{
 sub _append_prereq{
 	my $self=shift;
 	my $modName=shift;
-	my $preTree=shift;
+	my $preTree=shift||$self;
 	my $parentNode=shift || $preTree->GetRootItem();	
-	#set up variables for retrieveing and setting data
+
 #	print "_append_prereq($modName)\n";
 
 	my $pre=$self->GetPrereqs($modName);
 	#print Dumper $pre;
 	foreach $mod (@$pre){
 		push (@{$self->{thisPrereq}},$mod) unless ( grep($mod,@{$self->{thisPrereq}}) );
-		my $pNode=$preTree->AppendItem($parentNode,$mod,$self->_get_status_icon($mod));
+		my $icon=$self->_get_status_icon($mod);
+		#print "$mod icon: $icon\n";
+		my $pNode=$preTree->AppendItem($parentNode,$mod,$icon);
 		$self->_append_prereq($mod,$preTree,$pNode);
 	}
 }
@@ -463,7 +466,7 @@ sub _store_status{
 	my $self=shift;
 	my @mods=@_;
 	my $status={};
-	my $file=File::Spec->catfile($ENV{'HOME'},'.cpanplus','status.stored');
+	my $file=_uGetPath($self->{config},'cpp_stat_file');
 	$status=retrieve($file) if (-e $file);
 	foreach $mod (@mods){
 		$status->{$mod->name}=$mod->status();
@@ -1237,7 +1240,7 @@ sub _show_installed_by_category{
 sub _get_categories{
 	my $self = shift;
 
-	my $moduleFile= File::Spec->catfile($self->{config}->get_conf('base'),"03modlist.data.gz");
+	my $moduleFile= _uGetPath($self->{config},'cpp_modlist');
 	my $modlistEval;  #the string to evaluate == 03modlist.data.gz 
 
 	#inflate file into $modlistEval
@@ -1263,6 +1266,10 @@ sub _get_categories{
 	_uShowErr;
 }
 
+#this method displays the search results.
+#use: $self->search($type,@list_of_searches)
+#TODO add support for multiple searches, using ',' as delimiter
+#TODO show scrollbars
 sub search{
 	my $self=shift;
 	my ($type,@search)=@_;
@@ -1330,6 +1337,9 @@ sub search{
 	print "Window Height: ".$self->GetClientSize()->GetWidth." , ".$self->GetClientSize()->GetHeight."\n";
 #	print Dumper $self->GetClientSize();
 	$self->{statusBar}->SetStatusText('');
+	my $curStyle=$self->GetWindowStyleFlag();
+	$self->SetWindowStyleFlag($self->GetWindowStyleFlag()|wxVSCROLL);
+	$self->GetParent()->SetWindowStyleFlag($self->GetParent()->GetWindowStyleFlag()|wxVSCROLL);
 }
 
 sub PopulateWithModuleHash{

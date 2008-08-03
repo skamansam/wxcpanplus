@@ -8,6 +8,7 @@ use Cwd;
 use Data::Dumper;
 use CPANPLUS::Error;
 use File::Spec;
+use File::HomeDir;
 use Class::Struct qw(struct);
 
 #enable gettext support
@@ -15,7 +16,36 @@ use Wx::Locale gettext => '_T';
 
 use base qw(Exporter);
 our @EXPORT = qw(_uPopulateTree _uGetTimed _uGetInstallPath 
-		_uShowErr _u_t_ShowErr _uGetImageData);
+		_uShowErr _u_t_ShowErr _uGetImageData _uGetPath);
+
+#returns the path for the specified item
+#call: _uGetPath($cpp_config,$item)
+#$item can be one of : 
+#	'app_config'		wxCPAN config file
+#	'cpp_mod_dir'		path to $cpp_home/authors/id/, where cpanplus stores modules
+#	'cpp_stat_file'		path to the cpp status.store file
+#	'cpp_modlist'		path to the 03modlist.data.gz file
+sub _uGetPath{ 
+	my $conf=shift;		#a CPANPLUS::Config object
+	my $path=shift;		#the value we want.
+	my $op1=shift;		#the optional subdir
+	my $ret=undef;		#return value
+	my $home = File::HomeDir->my_home; #user's home directory
+	my $cpp_home= $conf->get_conf('base');
+	
+	if ($path eq 'app_config'){
+		$ret=File::Spec->catfile($home,'.wxcpan','.config')
+	}elsif($path eq 'cpp_mod_dir'){
+		$ret=File::Spec->catdir($cpp_home,"authors","id");
+	}elsif($path eq 'cpp_stat_file'){
+		$ret=File::Spec->catdir($cpp_home,'status.stored');
+	}elsif($path eq 'cpp_modlist'){
+		$ret=File::Spec->catdir($cpp_home,'03modlist.data.gz');
+	}else{
+		print "Usage: CPANPLUS::Shell::Wx::util::_uGetPath('app_config')";
+	}
+	return $ret;
+}
 
 #TODO this method populates a tree with the correct status icon
 sub _uPopulateModulesWithIcons{

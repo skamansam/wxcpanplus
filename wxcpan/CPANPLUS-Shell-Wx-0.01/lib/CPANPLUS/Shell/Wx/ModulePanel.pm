@@ -164,9 +164,11 @@ sub GetStatusBar{return $_->{statusbar};}
 sub SetPODReader{$_[0]->{PODReader}=$_[1];}		#must be a CPANPLUS::Shell::Wx::PODReader
 sub GetPODReader{return $_->{PODReader};}
 sub SetImageList{								#must be a Wx::ImageList
-	$_[0]->{imageList}=$_[1];
-	$_[0]->{mod_tree}->SetImageList($_[1]);
-	Wx::Window::FindWindowByName('info_prereqs')->AssignImageList($_[1]->{imageList});
+	my ($self,$imgList)=@_;
+	$self->{imageList}=$imgList;
+	$self->{mod_tree}->SetImageList($imgList);
+	print "Assigning imagelist....".$imgList->imageList."\n";
+	Wx::Window::FindWindowByName('info_prereqs')->AssignImageList($imgList->imageList);
 }
 sub GetImageList{return $_->{imageList};}
 sub SetModuleTree{$_[0]->{mod_tree}=$_[1];}		#must be a CPANPLUS::Shell::Wx::ModuleTree
@@ -371,7 +373,7 @@ sub _info_get_status{
 
 	#if we haven't retrieved the file and the stored info exists
 	#then use the stored values
-	my $statFile=File::Spec->catfile($ENV{'HOME'},'.cpanplus','status.stored');
+	my $statFile=_uGetPath($self->{config},'cpp_stat_file');
 	if (!defined($status->fetch) && -e $statFile && (my $Allstatus=retrieve($statFile)) ){
 		$thisStat=$Allstatus->{$mod->name};
 		$status=$thisStat if $Allstatus->{$mod->name};

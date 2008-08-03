@@ -39,7 +39,7 @@ sub new {
 #if not, it creates one
 sub _check_config_file{
 	my $self=shift;
-	my $file=File::Spec->catfile($ENV{'HOME'},'.wxcpan','.config');
+	my $file=_uGetPath($self->{config},'app_config');
 	unless (-e $file ){
 		if (open(F,">$file") ){
 			print F '';
