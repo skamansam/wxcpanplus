@@ -14,7 +14,11 @@ package CPANPLUS::Shell::Wx;
 
 =head1 NAME
 
-CPANPLUS::Shell::Wx - CPANPLUS wxGUI Shell
+CPANPLUS::Shell::Wx - A CPANPLUS GUI Shell written in wxWidgets
+
+=head1 AUTHOR
+
+Skaman Sam Tyler <skamansam@gmail.com>
 
 =head1 SYNOPSIS
 
@@ -52,7 +56,7 @@ at your option, any later version of Perl 5 you may have available.
 
 =cut
 
-
+use 5.005;
 use strict;
 
 use CPANPLUS::Error;

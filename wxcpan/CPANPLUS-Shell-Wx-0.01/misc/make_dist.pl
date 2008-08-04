@@ -1,10 +1,14 @@
 #!/usr/bin/perl -w
 
-# make_manifest.pl - get ready to tarball a module for CPAN
+#NOTE there is no real reason to use this, but someone may want it.
+
+# make_dist.pl - get ready to tarball a module for CPAN
 # this script expects to be in the /misc dir. It makes really clean, writes
 # a /html dir from the .pm pod, writes an accurate manifest and then fixes
 # up all the line endings.
-#added by Skaman Sam: .tar.gz creation
+
+#added by Skaman Sam: 
+#  - .tar.gz creation
 
 use strict;
 use Pod::Html;

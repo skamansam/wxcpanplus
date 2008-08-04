@@ -8,7 +8,7 @@ use Cwd;
 my $dir=cwd;
 #print $dir;
 
-use lib cwd().'/lib';
+use lib cwd().'/../lib';
 
 use Wx qw[:allclasses];
 use CPANPLUS::Shell::Wx::PODReader;

@@ -30,6 +30,6 @@ my $shell;
 
 ## Test Wx first
 ok(1,'Wx_new');
-ok(1,'Wx_shell');
+#ok(1,'Wx_shell');
 sub Wx_new{my $cps=CPANPLUS::Shell::Wx->new();return $cps->isa('CPANPLUS::Shell::Wx');}
-sub Wx_shell{shell(Wx);}
+#sub Wx_shell{shell(Wx);}
