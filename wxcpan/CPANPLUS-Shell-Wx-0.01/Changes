@@ -1,6 +1,4 @@
 Revision history for Perl extension CPANPLUS::Shell::Wx.
 
-0.01  Thu May  8 09:38:45 2008
-	- original version; created by h2xs 1.23 with options
-		-AX CPANPLUS::Shell::Wx
-
+0.01  Sun Aug 3 12:14:45 2008
+    - first release to CPAN

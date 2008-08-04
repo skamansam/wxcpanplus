@@ -14,7 +14,7 @@
                 <object class="wxTextCtrl" name="text_ctrl_1" base="EditTextCtrl">
                     <style>wxTE_MULTILINE|wxTE_READONLY|wxTE_CENTRE|wxTE_WORDWRAP</style>
                     <disabled>1</disabled>
-                    <value>Welcome to the CPANPLUS update wizard. \n	\nWe will begin by asking a few simple questions to update CPANPLUS. \n	\nClick Next to begin.</value>
+                    <value>Welcome to the CPANPLUS update wizard. \n    \nWe will begin by asking a few simple questions to update CPANPLUS. \n    \nClick Next to begin.</value>
                 </object>
             </object>
         </object>

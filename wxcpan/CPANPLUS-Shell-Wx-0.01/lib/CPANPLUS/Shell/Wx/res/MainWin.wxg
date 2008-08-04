@@ -13,13 +13,13 @@
             <menus>
                 <menu name="mnu_file" itemid="mnu_File" label="&amp;File">
                     <item>
-                        <label>&amp;Open Actions...	Ctrl+O</label>
+                        <label>&amp;Open Actions...    Ctrl+O</label>
                         <id>mnu_file_open</id>
                         <name>mnu_file_open</name>
                         <help_str>Open Actions</help_str>
                     </item>
                     <item>
-                        <label>&amp;Save Actions...	Ctrl+S</label>
+                        <label>&amp;Save Actions...    Ctrl+S</label>
                         <id>mnu_file_save</id>
                         <name>mnu_file_save</name>
                         <help_str>Save Actions</help_str>
@@ -30,7 +30,7 @@
                         <name>---</name>
                     </item>
                     <item>
-                        <label>&amp;Quit	Ctrl+Q</label>
+                        <label>&amp;Quit    Ctrl+Q</label>
                         <id>mnu_file_quit</id>
                         <name>mnu_file_quit</name>
                         <help_str>Quit wxCPAN</help_str>
@@ -38,7 +38,7 @@
                 </menu>
                 <menu name="mnu_edit" itemid="mnu_edit" label="&amp;Edit">
                     <item>
-                        <label>&amp;Preferences...	Ctrl+/</label>
+                        <label>&amp;Preferences...    Ctrl+/</label>
                         <id>mnu_edit_prefs</id>
                         <name>mnu_edit_prefs</name>
                         <help_str>Show Preferences</help_str>
@@ -46,13 +46,13 @@
                 </menu>
                 <menu name="mnu_help" itemid="mnu_help" label="&amp;Help">
                     <item>
-                        <label>&amp;Dump Config to Console	Ctrl+D</label>
+                        <label>&amp;Dump Config to Console    Ctrl+D</label>
                         <id>mnu_show_config_dump</id>
                         <name>mnu_show_config_dump</name>
                         <help_str>Dumps Conguration information to Log</help_str>
                     </item>
                     <item>
-                        <label>&amp;Run Update Wizard...	Ctrl+U</label>
+                        <label>&amp;Run Update Wizard...    Ctrl+U</label>
                         <id>mnu_help_updatewizard</id>
                         <name>mnu_help_updatewizard</name>
                         <help_str>Run the CPANPLUS Update Wizard</help_str>
@@ -63,7 +63,7 @@
                         <name>---</name>
                     </item>
                     <item>
-                        <label>Show &amp;Pod Reader	Ctrl+H</label>
+                        <label>Show &amp;Pod Reader    Ctrl+H</label>
                         <id>mnu_help_pod_reader</id>
                         <name>mnu_help_pod_reader</name>
                         <help_str>Show perldoc Interface</help_str>
@@ -74,13 +74,13 @@
                         <name>---</name>
                     </item>
                     <item>
-                        <label>&amp;Help	F1</label>
+                        <label>&amp;Help    F1</label>
                         <id>mnu_help_help</id>
                         <name>mnu_help_help</name>
                         <help_str>How to use wxCPAN</help_str>
                     </item>
                     <item>
-                        <label>&amp;About	F2</label>
+                        <label>&amp;About    F2</label>
                         <id>mnu_help_about</id>
                         <name>mnu_help_about</name>
                         <help_str>About wxCPAN</help_str>

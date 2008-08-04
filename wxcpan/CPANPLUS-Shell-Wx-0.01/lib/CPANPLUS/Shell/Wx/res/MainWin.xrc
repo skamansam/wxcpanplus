@@ -10,48 +10,48 @@
             <object class="wxMenu" name="mnu_file">
                 <label>_File</label>
                 <object class="wxMenuItem" name="mnu_file_open">
-                    <label>_Open Actions...	Ctrl+O</label>
+                    <label>_Open Actions...    Ctrl+O</label>
                     <help>Open Actions</help>
                 </object>
                 <object class="wxMenuItem" name="mnu_file_save">
-                    <label>_Save Actions...	Ctrl+S</label>
+                    <label>_Save Actions...    Ctrl+S</label>
                     <help>Save Actions</help>
                 </object>
                 <object class="separator"/>
                 <object class="wxMenuItem" name="mnu_file_quit">
-                    <label>_Quit	Ctrl+Q</label>
+                    <label>_Quit    Ctrl+Q</label>
                     <help>Quit wxCPAN</help>
                 </object>
             </object>
             <object class="wxMenu" name="mnu_edit">
                 <label>_Edit</label>
                 <object class="wxMenuItem" name="mnu_edit_prefs">
-                    <label>_Preferences...	Ctrl+/</label>
+                    <label>_Preferences...    Ctrl+/</label>
                     <help>Show Preferences</help>
                 </object>
             </object>
             <object class="wxMenu" name="mnu_help">
                 <label>_Help</label>
                 <object class="wxMenuItem" name="mnu_show_config_dump">
-                    <label>_Dump Config to Console	Ctrl+D</label>
+                    <label>_Dump Config to Console    Ctrl+D</label>
                     <help>Dumps Conguration information to Log</help>
                 </object>
                 <object class="wxMenuItem" name="mnu_help_updatewizard">
-                    <label>_Run Update Wizard...	Ctrl+U</label>
+                    <label>_Run Update Wizard...    Ctrl+U</label>
                     <help>Run the CPANPLUS Update Wizard</help>
                 </object>
                 <object class="separator"/>
                 <object class="wxMenuItem" name="mnu_help_pod_reader">
-                    <label>Show _Pod Reader	Ctrl+H</label>
+                    <label>Show _Pod Reader    Ctrl+H</label>
                     <help>Show perldoc Interface</help>
                 </object>
                 <object class="separator"/>
                 <object class="wxMenuItem" name="mnu_help_help">
-                    <label>_Help	F1</label>
+                    <label>_Help    F1</label>
                     <help>How to use wxCPAN</help>
                 </object>
                 <object class="wxMenuItem" name="mnu_help_about">
-                    <label>_About	F2</label>
+                    <label>_About    F2</label>
                     <help>About wxCPAN</help>
                 </object>
             </object>

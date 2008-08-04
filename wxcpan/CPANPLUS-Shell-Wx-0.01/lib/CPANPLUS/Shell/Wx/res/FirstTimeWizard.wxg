@@ -14,7 +14,7 @@
                 <object class="wxTextCtrl" name="text_ctrl_1" base="EditTextCtrl">
                     <style>wxTE_MULTILINE|wxTE_READONLY|wxTE_CENTRE|wxTE_WORDWRAP</style>
                     <disabled>1</disabled>
-                    <value>Welcome to the First Time Wizard. \n	\nSince This is the first time you have used wxCPAN, let's start by building a basic configuration file.\n	\nClick Next to begin.</value>
+                    <value>Welcome to the First Time Wizard. \n    \nSince This is the first time you have used wxCPAN, let's start by building a basic configuration file.\n    \nClick Next to begin.</value>
                 </object>
             </object>
         </object>

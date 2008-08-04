@@ -1,13 +1,13 @@
 package CPANPLUS::Shell::Wx;
 
-# Module name: 		CPANPLUS::Shell::Wx
-# Author: 			Skaman Sam Tyler
-# Date: 			May 9th, 2008
-# Description: 		This is a perl Module which is a frontend to CPANPLUS.
+# Module name:         CPANPLUS::Shell::Wx
+# Author:             Skaman Sam Tyler
+# Date:             May 9th, 2008
+# Description:         This is a perl Module which is a frontend to CPANPLUS.
 #
 # NOTES:
-#	NOTE I have used the methods contained in CPANPLUS::Shell::Tk to create 
-#		my skeleton code for this module.
+#    NOTE I have used the methods contained in CPANPLUS::Shell::Tk to create
+#        my skeleton code for this module.
 
 
 # Preloaded methods go here.
@@ -19,7 +19,7 @@ CPANPLUS::Shell::Wx - CPANPLUS wxGUI Shell
 =head1 SYNOPSIS
 
   perl -MCPANPLUS -eshell(Wx);
-  
+
 
 =head1 DESCRIPTION
 
@@ -80,7 +80,7 @@ local $Data::Dumper::Indent     = 1; # for dumpering from !
 BEGIN {
   use vars        qw( @ISA $VERSION );
   @ISA        =   qw( CPANPLUS::Shell::_Base CPANPLUS::Backend);
-  $VERSION    =   '0.01';
+  $VERSION    =   '0.02';
 }
 
 #initialize the class
@@ -95,9 +95,9 @@ sub new {
 
 #create the shell and start the app
 sub shell{
-	my $self=shift;
-	my $app=CPANPLUS::Shell::Wx::App->new();
-	$app->MainLoop;
+    my $self=shift;
+    my $app=CPANPLUS::Shell::Wx::App->new();
+    $app->MainLoop;
 }
 
 1;
