@@ -34,7 +34,7 @@ sub _uGetPath{
     my $cpp_home= $conf->get_conf('base');
 
     if ($path eq 'app_config'){
-        $ret=File::Spec->catfile($home,'.wxcpan','.config')
+        $ret=File::Spec->catfile($cpp_home,'wxcpan.conf')
     }elsif($path eq 'cpp_mod_dir'){
         $ret=File::Spec->catdir($cpp_home,"authors","id");
     }elsif($path eq 'cpp_stat_file'){

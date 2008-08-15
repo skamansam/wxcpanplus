@@ -6,6 +6,46 @@
 </head>
 <body>
 <h1>wxCPAN Preferences :: Build</h1>
-<p></p>
+<p>These settings relate to how CPANPLUS builds the modules.</p>
+<dl>
+	<dt>Allow Interactive Build</dt>
+		<dd>Whether to run `perl Makefile.PL` interactively.</dd>
+	<dt>Test CPAN</dt>
+		<dd>Mail test results to http://testers.cpan.org</dd>
+	<dt>Prefer Makefile</dt>
+		<dd>Prefer using Makefile.PL instead of Build.PL if both are present.</dd>
+	<dt>Skip Tests</dt>
+		<dd>Skip testing modules before installing.</dd>
+	<dt>Force Install</dt>
+		<dd>Files should be forcefully overwritten if tests fail or a newer version already exists.
+		This option can be overridden using the Force option in the Actions Tab.</dd>
+	<dt>Flush Cache</dt>
+		<dd>Flush cache directories, status flags, etc. after every operation.</dd>
+	<dt>Check MD5</dt>
+		<dd>Check the MD5 sum for each module after it is downloaded. 
+		Only applies if Digest::MD5 is installed.</dd>
+	<dt>Check Signature</dt>
+		<dd>Check signatures if packages are signed. Only applies if 
+		Crypt::OpenPGP is installed.</dd>
+	<dt>Use Storable</dt>
+		<dd>Use Storable (module) to write package information to disk. This is
+		recommended, as it makes CPANPLUS start up faster.</dd>
+	<dt>Extra Build Flags</dt>
+		<dd>Any extra flags to be passed to `perl Makefile.PL`. See 
+		Module::Build documentation for more information.</dd>
+	<dt>Extra Make Flags</dt>
+		<dd>Any extra flags to be passed to the make program.</dd>
+	<dt>Extra MakeMaker Flags</dt>
+		<dd>Any extra flags to be passed to the make program.</dd>
+	<dt>Distribution Type</dt>
+		<dd>Default distribution type to use when building packages. 
+		See perldoc for cpan2dist or CPANPLUS::Dist for more information.</dd>
+	<dt>Prerequisite Action</dt>
+		<dd>What to do when a module has prerequisites. <br/>
+		Ask: ask whether to install. <br/>
+		Follow: Install prerequisites. <br/>
+		Ignore: Do nothing.
+		</dd>
+</dl>
 </body>
 </html>

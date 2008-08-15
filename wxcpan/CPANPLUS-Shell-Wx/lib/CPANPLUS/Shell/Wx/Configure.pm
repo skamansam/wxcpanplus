@@ -5,6 +5,7 @@ use Wx;
 use Data::Dumper;
 use Wx::XRC;
 use Cwd;
+use CPANPLUS::Shell::Wx::util;
 
 #use CPANPLUS::Shell::Wx::prefsCheck;
 use Wx::Event qw(EVT_CHECKBOX EVT_WINDOW_CREATE);

@@ -1,4 +1,4 @@
-#TODO make the moduletree a TreeCtrl and this module a panel
+
 package CPANPLUS::Shell::Wx::ModuleTree;
 
 use Wx qw/wxPD_APP_MODAL wxPD_APP_MODAL wxPD_CAN_ABORT
@@ -12,7 +12,7 @@ use Wx::ArtProvider qw/:artid :clientid/;
 use Data::Dumper;
 use YAML qw/LoadFile Load/;
 use File::Spec;
-#use File::Path;
+use File::Path;
 use Storable;
 
 use threads;
@@ -86,7 +86,7 @@ sub new {
     EVT_TREE_SEL_CHANGED( $self, $self, \&OnSelChanged);    #when a user changes the selection
     EVT_TREE_ITEM_ACTIVATED($self, $self, \&OnDblClick);    #When the user double-clicks an item
     EVT_TREE_ITEM_RIGHT_CLICK( $self, $self, \&ShowPopupMenu );#when the user wants a pop-up menu
-    #$self->SetWindowStyleFlag($self->GetWindowStyleFlag()|wxVSCROLL);
+    $self->SetWindowStyleFlag($self->GetWindowStyleFlag()|wxVSCROLL);
 
     return $self;
 }
@@ -450,7 +450,7 @@ sub _install_with_prereqs{
     }
     #store status info and populate status tab
     $self->_store_status(@mods);
-    $self->_info_get_status();
+    #$self->_info_get_status();
 
     unless ($isSuccess){
         $self->{statusBar}->SetStatusText(_T('Failed to install ').$curMod->name._T(". Please Check Log."));
@@ -544,7 +544,7 @@ sub PopulateWithHash{
     my $progress=shift;
     my $max_progress=shift;
 
-    print "Window Height: ".$self->GetClientSize()->GetWidth." , ".$self->GetClientSize()->GetHeight."\n";
+    #print "Window Height: ".$self->GetClientSize()->GetWidth." , ".$self->GetClientSize()->GetHeight."\n";
 
     #set defaults.
     #Use half the number of items in the hash as a total items count, if none given
@@ -567,21 +567,25 @@ sub PopulateWithHash{
 
     foreach $top_level ( sort( keys(%$tree) ) ){
         next if $top_level eq '_items_in_tree_';
+        my $display=$top_level;
         my $curParent=$self->AppendItem(
             $self->GetRootItem(),
             $top_level,$self->_get_status_icon($top_level));
         foreach $item (sort(@{$tree->{$top_level}})){
-            $self->AppendItem($curParent,$item,$self->_get_status_icon($item)) if ($curParent && $item);
+            $self->AppendItem($curParent,$top_level."::".$item,$self->_get_status_icon($item)) if ($curParent && $item);
             last unless $progress->Update($cnt*$percent);
             $cnt++;
         }
     }
+#	my $dummy=$self->AppendItem($self->GetRootItem(),'end');
+#	my $subDummy=$self->AppendItem($dummy,'end');
+
 #    $progress->Update($numFound+1);
     $progress->Destroy();
     my $inserted_time=time()-$begin;
     Wx::LogMessage _T("Finished Inserting in ").sprintf("%d",($inserted_time/60)).":".($inserted_time % 60)."\n";
 
-    print "Window Height: ".$self->GetClientSize()->GetWidth." , ".$self->GetClientSize()->GetHeight."\n";
+#    print "Window Height: ".$self->GetClientSize()->GetWidth." , ".$self->GetClientSize()->GetHeight."\n";
     _uShowErr;
     return 1;
 }
@@ -1114,7 +1118,7 @@ sub _show_installed_by_name{
     Wx::LogMessage _T("Finished Sorting in ").sprintf("%d",(($end-$begin)/60)).":".(($end-$begin) % 60)."\n";
 
     #store tree for later use
-    $tree{'_items_in_tree_'}=$numFound;
+    $tree{'_items_in_tree_'}=keys(%tree); #@installed; #$numFound;
     $self->{'tree_InstalledByName'}=\%tree;
 
     #populate the TreeCtrl
@@ -1354,18 +1358,29 @@ sub PopulateWithModuleHash{
     my $count=0;
     my $numFound=keys(%$modules);
     return unless $numFound>0;
-    my $percent=MAX_PROGRESS_VALUE/$numFound;
+    my $percent=MAX_PROGRESS_VALUE / $numFound;
     return unless $progress->Update(0,_T("Getting info for $numFound items."));
 
+	my $newTree={};
     #get information from modules
     foreach $modname (keys(%$modules)){
         last unless $progress->Update($percent*$count);
         if ($modules->{$modname}->isa('CPANPLUS::Module')){
-            push(@names,$modname);
+            my @names=split('::',$modname);
+            my $ref=$newTree;
+            foreach $n (@names){
+            	$ref=$ref->{$n}='';
+#            	push(@names,$modname);
+            }
         }
         if ($modules->{$modname}->isa('CPANPLUS::Module::Author')){
             foreach $m ($modules->{$modname}->modules()){
-                push(@names,$m->name);
+            	my @names=split('::',$m->name);
+            	my $ref=$newTree;
+	            foreach $n (@names){
+	            	$ref=$ref->{$n}='';
+#		            push(@names,$m->name);
+	            }
             }
         }
         $count++;
@@ -1374,11 +1389,23 @@ sub PopulateWithModuleHash{
     #populate the tree ctrl
     return unless $progress->Update(0,_T("Populating tree with ").$numFound._T(" items.") );
     $count=0;
-    foreach $item (sort {lc($a) cmp lc($b)} @names){
+#	my $dummy=$self->AppendItem($self->GetRootItem(),'Modules');    
+#   foreach $item (sort {lc($a) cmp lc($b)} @names){
+#        $self->AppendItem($dummy,$item,$self->_get_status_icon($item));
+#        $count++;
+#	}	
+	foreach $k (sort(keys(%$newTree))){
         return unless $progress->Update($percent*$count);
-        $self->AppendItem($self->GetRootItem(),$item,$self->_get_status_icon($item));
+		my $parent=$self->AppendItem($self->GetRootItem(),$item,$self->_get_status_icon($item));
+		my $ref=$newTree->{$k};
+		while($ref){
+			
+		}
         $count++;
     }
+#	my $dummy=$self->AppendItem($self->GetRootItem(),'end');
+#	my $subDummy=$self->AppendItem($dummy,'end');
+#	$self->EnsureVisible($dummy);
     return 1;
 }
 

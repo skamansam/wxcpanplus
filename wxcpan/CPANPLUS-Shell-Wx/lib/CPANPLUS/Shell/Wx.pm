@@ -84,7 +84,7 @@ local $Data::Dumper::Indent     = 1; # for dumpering from !
 BEGIN {
   use vars        qw( @ISA $VERSION );
   @ISA        =   qw( CPANPLUS::Shell::_Base CPANPLUS::Backend);
-  $VERSION    =   '0.03';
+  $VERSION    =   '0.04';
 }
 
 #initialize the class

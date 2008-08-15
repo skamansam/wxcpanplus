@@ -400,7 +400,7 @@ sub _info_get_readme{
     return unless $mod;
     my $info_readme=Wx::Window::FindWindowByName('info_readme');
     $info_readme->Clear();
-    $info_readme->AppendText($mod->readme);
+    $info_readme->AppendText(($mod->readme || 'No README Found! Check Log for more information.'));
     $info_readme->ShowPosition(0);
     _uShowErr;
 }

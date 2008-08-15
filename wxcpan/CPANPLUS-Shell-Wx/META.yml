@@ -1,8 +1,9 @@
 --- 
 abstract: A CPANPLUS GUI Shell written in wxWidgets
-author: Skaman Sam Tyler <skamansam@gmail.com>
+author: 
+  - Skaman Sam Tyler <skamansam@gmail.com>
 distribution_type: module
-generated_by: Module::Install version 0.65
+generated_by: Module::Install version 0.68
 license: perl
 meta-spec: 
   url: http://module-build.sourceforge.net/META-spec-v1.3.html
@@ -15,7 +16,7 @@ no_index:
     - t
 requires: 
   Archive::Extract: 0.0
-  CPANPLUS: 0.076
+  CPANPLUS: 0.078
   Class::Struct: 0.0
   Config: 0.0
   File::Fetch: 0.0
@@ -36,4 +37,4 @@ requires:
   Wx: 0.74
   YAML: 0.0
   perl: 5.005
-version: 0.03
+version: 0.04

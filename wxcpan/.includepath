@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <includepath>
-  <includepathentry path="${resource_loc:/wxCPANPLUS/CPANPLUS-Shell-Wx-0.01/lib}" />
+  <includepathentry path="${resource_loc:/wxCPANPLUS/CPANPLUS-Shell-Wx/lib}" />
 </includepath>
 

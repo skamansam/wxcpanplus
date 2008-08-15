@@ -11,7 +11,7 @@ all_from       'lib/CPANPLUS/Shell/Wx.pm';
 #list deps that aren't in perl 5.005 (new since 1998)
 #the commented out modules are in perl 5.005
 requires       'Class::Struct'    			=> '0.0';
-requires       'CPANPLUS'	    			=> '0.076';
+requires       'CPANPLUS'	    			=> '0.078';
 #requires       'Cwd'    	 				=> '0.0';
 requires       'File::HomeDir'    			=> '0.0';
 #requires       'File::Path'  				=> '0.80';
