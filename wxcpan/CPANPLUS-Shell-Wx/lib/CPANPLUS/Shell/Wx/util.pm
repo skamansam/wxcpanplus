@@ -1,3 +1,7 @@
+#CPANPLUS::Shell::Wx::util.pm - wxCPAN global utility functions
+# This file contains global utility functions, mostly relating
+# to resource retrieval
+
 package CPANPLUS::Shell::Wx::util;
 
 use Wx::Event qw(EVT_MENU EVT_TOOL EVT_WINDOW_CREATE EVT_BUTTON);

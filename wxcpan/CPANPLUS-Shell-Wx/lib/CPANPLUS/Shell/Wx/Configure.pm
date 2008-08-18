@@ -1,3 +1,20 @@
+#CPANPLUS::Shell::Wx::Configure.pm - the wxCPAN Preferences window
+#	wxWidgets has a feature that enables you to give each wxWindow a name.
+#	Instead of doing a lot of coding for each wxWindow, I used the name 
+#	property to define how to get the associated CPANPLUS::Config option.
+#	Each window name is parsed and turned into code. The first word is the section
+#	of data we are retieving with an underscore, and the remainder is the data key.
+#		For example: a window named 'config_ftp_proxy' will be parsed as 
+#			$configure_object->get_config('ftp_proxy')
+#	The same mechanism is used for setting values as well. If we want to add a new 
+#	control, just add an event handler to an existing class.
+#	This way, we can just adjust the name in wxGlade to fit the key. I have defined
+#	many standard widgets below. If we need a new widget, just copy an existing 
+#	class and change a couple of lines to fit!
+#	There are a few exceptions to this method - ListCtrls and TreeCtrls. They require
+#	more special handling of events.
+#	For a clearer example of what i am talking about, see the ComboBox subclass below.
+
 #TODO clean up Log Messages
 
 package CPANPLUS::Shell::Wx::Configure;
@@ -194,7 +211,7 @@ use base 'Wx::ComboBox';
 
 sub new {
     my $class = shift;
-    my $self  = $class->SUPER::new();    # create an 'empty' Frame object
+    my $self  = $class->SUPER::new();
     EVT_WINDOW_CREATE( $self, $self, \&OnCreate );
     $self->{config} = Wx::Window::FindWindowByName('prefs_window')->{config};
     return $self;
@@ -204,7 +221,7 @@ sub new {
 sub OnCreate {
     my $self = shift;
     my $name = $self->GetName();
-    $name =~ s|_|\('|; #for use with wxGlade
+    $name =~ s|_|\('|;
     my $val;
     eval "\$val=\$self->{config}->get_$name')";
     EVT_COMBOBOX( $self, $self, \&OnSelect ) if $name=~/prereqs/;

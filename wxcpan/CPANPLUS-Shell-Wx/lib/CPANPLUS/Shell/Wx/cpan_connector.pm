@@ -1,3 +1,6 @@
+#NOTE: this file may never be used! It is probably best to re-write each block
+#	to determine what backend we are using.
+
 #this package is a connector from CPANPLUS to CPAN.
 #(A CPANPLUS programmer's interface for CPAN.)
 

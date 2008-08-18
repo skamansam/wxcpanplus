@@ -1,3 +1,5 @@
+#CPANPLUS::Shell::Wx::ModuleTree.pm - the TreeCtrl which displays the modules
+
 
 package CPANPLUS::Shell::Wx::ModuleTree;
 
@@ -1308,13 +1310,17 @@ sub search{
         my $percent = MAX_PROGRESS_VALUE/(@modterms+@authterms);
         my $count=0;
         foreach $term (@modterms){
-            if ($progress->Update($percent*($count++),_T("Searching in $term: Found ").keys(%$modules)._T(" items"))){
-                foreach $m ($self->{cpan}->search(type => $term, allow => \@search)){
+        	next if $term=~/^\_/;
+            if ($progress->Update($percent*($count++),_T("Searching in $term (").$count.'/'.@modterms._T("): Found ").keys(%$modules)._T(" items"))){
+                my @modsfound=$self->{cpan}->search(type => $term, allow => \@search);
+                print "Found ".@modsfound." in $term\n";
+                foreach $m (@modsfound){
                     if ($m->isa(CPANPLUS::Module)){
                         #print "module: ".$m->name." [".($percent*($count++)/MAX_PROGRESS_VALUE)."]\n";
                         $modules->{$m->name} = $m;
                     }
                     if ($m->isa(CPANPLUS::Module::Author)){
+                        print $m->author." has ".$m->modules." modules\n";
                         foreach $amod ($m->modules()){
                             #print "amodule: ".$m->name." [".($percent*($count++)/MAX_PROGRESS_VALUE)."]\n";
                             $modules->{$amod->name} = $amod;

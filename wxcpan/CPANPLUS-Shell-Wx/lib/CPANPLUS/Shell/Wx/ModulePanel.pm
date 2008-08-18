@@ -1,3 +1,11 @@
+#CPANPLUS::Shell::Wx::ModulePanel.pm - the panle under the Modules tab in wxCPAN.
+#You can embed this panel into an existing wx application to get
+#wxCPAN's module browsing, searching, and installing functionality.
+
+#TODO add constant for Wx::XmlResource::GetXRCID for code readability.
+#TODO add constant for list of search terms
+#TODO add thread support
+
 package CPANPLUS::Shell::Wx::ModulePanel;
 use Wx qw[:everything];
 use base qw(Wx::Panel);
@@ -90,7 +98,7 @@ sub _setup_search{
     #$typebox->SetValue(0);
 }
 
-
+#apply callbacks for all buttons in the info pane
 sub _setup_info_tabs{
     $self=shift;
     #attach menu events
@@ -114,6 +122,7 @@ sub _setup_info_tabs{
 
 }
 #update only info tab in the lower notebook and clear other items
+#happens when user selects an item
 sub HandleTreeClick{
     my ($self,$tree,$event)=@_;
 
@@ -132,7 +141,7 @@ sub HandleTreeClick{
 }
 
 
-# Here, we reroute the calls to ModuleTree
+# Here, we reroute the calls to ModuleTree if we don't have one in this class
 sub AUTOLOAD{
     my $self=shift;
     my @ops=@_;
@@ -151,6 +160,7 @@ sub AUTOLOAD{
 
 }
 
+#called when "Get More Information" context menu item is selected
 sub HandleContextInfo{
     my ($self,$menu,$cmd_event,$modName)=@_;
     my $modtree=Wx::Window::FindWindowByName('tree_modules');
@@ -242,6 +252,7 @@ sub _info_reset{
     }
 }
 
+#populates all data in the info pane.
 sub _get_more_info{
     my $self=shift;
     my $mod=shift||$self->{thisMod};
@@ -268,6 +279,7 @@ sub _get_more_info{
 
 }
 
+#get list of installed files and populate Files info tab
 sub _info_get_files{
     my $self=shift;
     my $mod=shift||$self->{thisMod};
@@ -287,6 +299,8 @@ sub _info_get_files{
     $info_files->AppendText($text);
     _uShowErr;
 }
+
+#gets basic information for a module and displays it in the Info tab
 sub _info_get_info{
     my $self=shift;
     my $mod=shift||$self->{mod_tree}->GetMod();
@@ -336,15 +350,65 @@ sub _info_get_info{
 
 
 }
+
+#gets available versions and populates combobox in Actions tab in info pane
+#TODO add thread support
 sub _info_get_versions{
     my $self=shift;
+    
     my $mod=shift||$self->{thisMod};
     return unless $mod;
 
     $self->{statusBar}->SetStatusText(_T("Getting Version Info for ").$mod->name."...");
     my $versionList=Wx::Window::FindWindowByName('info_distributions');
-    $versionList->Clear();
+	my @versions=();
+	
+	#start a new thread
+	#if ($self->{versionThread}){$self->{versionThread}->kill('SIGUSR1');}
+	#$self->{versionThread}=threads->create(sub{@versions=$self->_get_version_list($self,$mod)});
 
+    my @versions=();
+    foreach $m ($mod->distributions()){
+        my $v=($m->version || 0.0) if $m;
+        push(@versions,$v) unless (grep(/$v/,@versions));
+    }
+    @versions=sort(@versions);
+
+	#@versions=$self->_get_version_list($self,$mod);
+    $versionList->Append($_) foreach (@versions);
+    $versionList->SetValue($versions[-1]);
+}
+
+#returns an array of versions for the current module
+sub _get_version_list{
+    my $self=shift;
+    
+    my $mod=shift||$self->{thisMod};
+    return unless $mod;
+
+    my @versions=();
+    foreach $m ($mod->distributions()){
+        my $v=($m->version || 0.0) if $m;
+        push(@versions,$v) unless (grep(/$v/,@versions));
+    }
+    @versions=sort(@versions);
+
+	return @versions;	
+}
+#this is supposed to populate the combobox with all available versions
+#	and used inside a thread. 
+#TODO make this work
+sub _th_info_get_versions{
+    my $self=shift;
+ 	#print "getting Version by thread...",Dumper(@_);
+    
+    my $mod=shift||$self->{thisMod};
+    return unless $mod;
+	
+    $self->{statusBar}->SetStatusText(_T("Getting Version Info for ").$mod->name."...");
+    my $versionList=Wx::Window::FindWindowByName('info_distributions');
+    $versionList->Clear();
+	
     my @versions=();
     foreach $m ($mod->distributions()){
         my $v=($m->version || 0.0) if $m;
@@ -359,8 +423,7 @@ sub _info_get_versions{
     _uShowErr;
 }
 
-#get installer status info
-#TODO Make this work! Store status info after build into file
+#get installer status info from Storable file
 #Update the status tab
 sub _info_get_status{
     my $self=shift;
@@ -405,6 +468,7 @@ sub _info_get_readme{
     _uShowErr;
 }
 
+#gets contents of the module and displays it in the contents info tab
 sub _info_get_contents{
     my $self=shift;
     my $mod=shift||$self->{thisMod};
@@ -419,6 +483,8 @@ sub _info_get_contents{
     $info_contents->ShowPosition(0); #set visible position to beginning
     _uShowErr;
 }
+
+#validates install and updates the Validate info tab.
 sub _info_get_validate{
     my $self=shift;
     my $mod=shift||$self->{thisMod};
@@ -434,7 +500,7 @@ sub _info_get_validate{
     _uShowErr;
 }
 
-
+#gets tester reports for all version of module and displays them in the report info tab
 sub _info_get_report_all{
     my $self=shift;
     my $mod=shift||$self->{thisMod};
@@ -464,6 +530,8 @@ sub _info_get_report_all{
     $info_report->SetColumnWidth(2,wxLIST_AUTOSIZE);
     _uShowErr;
 }
+
+#gets reports for current module and updates Report info tab
 sub _info_get_report_this{
     my $self=shift;
     my $mod=shift||$self->{thisMod};
@@ -481,6 +549,7 @@ sub _info_get_report_this{
         $info_report->InsertColumn( 2, _T('Grade') );
     }
 
+    #get reports and insert them
     my @versions=$mod->fetch_report(all_versions => 0, verbose => 1);
     @versions=reverse(sort { lc($a->{platform}) cmp lc($b->{platform})} @versions);
     foreach $item (@versions ){
@@ -488,17 +557,89 @@ sub _info_get_report_this{
         $info_report->SetItem( 0, 1, $item->{'platform'} );
         $info_report->SetItem( 0, 2, $item->{'grade'} );
     }
+	
+	#resize columns to fit data
     $info_report->SetColumnWidth(0,wxLIST_AUTOSIZE);
     $info_report->SetColumnWidth(1,wxLIST_AUTOSIZE);
     $info_report->SetColumnWidth(2,wxLIST_AUTOSIZE);
+    
+    #show cpan errors
     _uShowErr;
 }
 
+#populates all info tabs with data related to the current module
 sub GetInfo{
     my ($menu,$cmd_event,$modName)=@_;
     my $modtree=$self->{mod_tree};
 
     $modtree->_get_more_info($modtree->_get_mod($modName));
+}
+
+########################################
+########### Search Button ##############
+########################################
+#this class is pretty much reserved for future use. If we want to add
+# functionality to the search button.
+
+package CPANPLUS::Shell::Wx::ModulePanel::SearchButton;
+use base 'Wx::Button';
+use Wx::Event qw/EVT_WINDOW_CREATE EVT_BUTTON/;
+
+sub new {
+	my $class = shift;
+	my $self  = $class->SUPER::new();	# create an 'empty' Frame object
+	EVT_WINDOW_CREATE( $self, $self, \&OnCreate );
+
+	return $self;
+}
+
+#happens when the button is created
+sub OnCreate {
+	my $self = shift;
+	EVT_BUTTON( $self, $self, \&OnClick );
+}
+
+#search for the text when the button is pressed
+sub OnClick{
+	my $self=shift;
+	my $searchbox=Wx::Window::FindWindowByName('cb_main_search')->GetValue();
+	my $typebox=Wx::Window::FindWindowByName('cb_search_type')->GetValue();
+	Wx::Window::FindWindowByName('main_window')->{list}->search(
+		$typebox,
+		$searchbox);
+
+}
+
+########################################
+############# Search Box ###############
+########################################
+#this is the search box. a user can type in a search text
+package CPANPLUS::Shell::Wx::ModulePanel::SearchBox;
+use base 'Wx::ComboBox';
+use Wx::Event qw/EVT_WINDOW_CREATE EVT_TEXT_ENTER/;
+
+sub new {
+	my $class = shift;
+	my $self  = $class->SUPER::new();	# create an 'empty' Frame object
+	EVT_WINDOW_CREATE( $self, $self, \&OnCreate );
+
+	return $self;
+}
+
+sub OnCreate {
+	my $self = shift;
+	EVT_TEXT_ENTER( $self, $self, \&OnEnter );
+}
+
+#happens when user presses the enter key in the entry field
+sub OnEnter{
+	my $self=shift;
+	my $searchbox=$self->GetValue();
+	my $typebox=Wx::Window::FindWindowByName('cb_search_type')->GetValue();
+	Wx::Window::FindWindowByName('main_window')->{list}->search(
+		$typebox,
+		$searchbox);
+
 }
 
 1;

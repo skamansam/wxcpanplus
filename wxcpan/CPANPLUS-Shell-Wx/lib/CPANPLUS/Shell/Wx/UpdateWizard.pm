@@ -1,3 +1,6 @@
+#CPANPLUS::Shell::Wx::UpdateWizard.pm - The update wizard
+#this module is a wizrd to aid in the upgrade of CPANPLUS
+
 package CPANPLUS::Shell::Wx::UpdateWizard;
 
 use base qw(Wx::Wizard);
