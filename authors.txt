@@ -1,0 +1,4 @@
+(no author) = Samuel C Tyler <skamansam@gmail.com>
+skamansam@gmail.com = Samuel C Tyler <skamansam@gmail.com>
+skamansam = Samuel C Tyler <skamansam@gmail.com>
+SkamanSam = Samuel C Tyler <skamansam@gmail.com>
